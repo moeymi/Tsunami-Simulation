@@ -32,17 +32,12 @@ public class SPH_Manager : MonoBehaviour
     [Tooltip("Tracks how many neighbours each particleIndex has in " + nameof(_neighbourList))]
     [SerializeField]
     private int[] _neighbourTracker;
-    [Tooltip("The absolute accumulated simulation steps")]
-    public int elapsedSimulationSteps;
 
-    private Particle[] _particles;
+    public float averageFPS;
+
+    private GameObject[] _particles;
     private int[] _neighbourList; // Stores all neighbours of a particle aligned at 'particleIndex * maximumParticlesPerCell * 8'
     private readonly Dictionary<int, List<int>> _hashGrid = new Dictionary<int, List<int>>();  // Hash of cell to particle indices.
-
-    private ComputeBuffer _particleColorPositionBuffer;
-    private ComputeBuffer _argsBuffer;
-    private static readonly int SizeProperty = Shader.PropertyToID("_size");
-    private static readonly int ParticlesBufferProperty = Shader.PropertyToID("_particlesBuffer");
 
     private float radius2;
     private float radius3;
@@ -66,7 +61,6 @@ public class SPH_Manager : MonoBehaviour
     {
         RespawnParticles();
         InitNeighbourHashing();
-        InitComputeBuffers();
         radius2 = radius * radius;
         radius3 = radius2 * radius;
         radius4 = radius3 * radius;
@@ -77,7 +71,7 @@ public class SPH_Manager : MonoBehaviour
 
     private void RespawnParticles()
     {
-        _particles = new Particle[numberOfParticles];
+        _particles = new GameObject[numberOfParticles];
         densities = new float[numberOfParticles];
         pressures = new float[numberOfParticles];
         forces = new Vector3[numberOfParticles];
@@ -93,11 +87,10 @@ public class SPH_Manager : MonoBehaviour
                     for (int z = 0; z < particlesPerDimension; z++)
                     {
                         Vector3 startPos = new Vector3(dimensions - 1, dimensions - 1, dimensions - 1) - new Vector3(x / 2f, y / 2f, z / 2f) - new Vector3(Random.Range(0f, 1f), Random.Range(0f, 1f), Random.Range(0f, 1f));
-                        _particles[counter] = new Particle
-                        {
-                            Position = startPos,
-                            Color = Color.white
-                        };
+                        _particles[counter] = Instantiate(particlePrefab);
+                        _particles[counter].transform.position = startPos;
+                        _particles[counter].transform.localScale = new Vector3(particleRadius, particleRadius, particleRadius);
+
                         densities[counter] = -1f;
                         pressures[counter] = 0.0f;
                         forces[counter] = Vector3.zero;
@@ -126,29 +119,6 @@ public class SPH_Manager : MonoBehaviour
                 }
     }
 
-    void InitComputeBuffers()
-    {
-        uint[] args = {
-            particleMesh.GetIndexCount(0),
-            (uint) numberOfParticles,
-            particleMesh.GetIndexStart(0),
-            particleMesh.GetBaseVertex(0),
-            0
-        };
-        _argsBuffer = new ComputeBuffer(1, args.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
-        _argsBuffer.SetData(args);
-
-        _particleColorPositionBuffer = new ComputeBuffer(numberOfParticles, sizeof(float) * (3 + 4));
-        if (_particles != null)
-        {
-            _particleColorPositionBuffer.SetData(_particles);
-        }
-        else
-        {
-            Debug.Log("Particles are null during compute buffer initialisation. Are you initialising the ParticleManager in the direct order?");
-        }
-    }
-
     #endregion
 
     void Update()
@@ -162,7 +132,7 @@ public class SPH_Manager : MonoBehaviour
         // 2. Recalculate hashes of each particle.
         for (int i = 0; i < _particles.Length; i++)
         {
-            var hash = HashGrid.Hash(HashGrid.GetCell(_particles[i].Position));
+            var hash = HashGrid.Hash(HashGrid.GetCell(_particles[i].transform.position));
             if (_hashGrid[hash].Count == maximumParticlesPerCell) continue;   // Prevent potential UB in neighbourList if more than maxParticlesPerCell are in a cell.
             _hashGrid[hash].Add(i);
         }
@@ -171,8 +141,8 @@ public class SPH_Manager : MonoBehaviour
         for (int particleIndex = 0; particleIndex < _particles.Length; particleIndex++)
         {
             _neighbourTracker[particleIndex] = 0;
-            var cell = HashGrid.GetCell(_particles[particleIndex].Position);
-            var cells = GetNearbyKeys(cell, _particles[particleIndex].Position);
+            var cell = HashGrid.GetCell(_particles[particleIndex].transform.position);
+            var cells = GetNearbyKeys(cell, _particles[particleIndex].transform.position);
 
             for (int j = 0; j < cells.Length; j++)
             {
@@ -182,7 +152,7 @@ public class SPH_Manager : MonoBehaviour
                 {
                     if (potentialNeighbour == particleIndex) continue;
 
-                    if ((_particles[potentialNeighbour].Position - _particles[particleIndex].Position).magnitude < radius)
+                    if ((_particles[potentialNeighbour].transform.position - _particles[particleIndex].transform.position).magnitude < radius)
                     {
                         _neighbourList[particleIndex * maximumParticlesPerCell * 8 + _neighbourTracker[particleIndex]++] = potentialNeighbour;
                     }
@@ -194,7 +164,7 @@ public class SPH_Manager : MonoBehaviour
         ComputeDensityPressure();
         ComputeForces();
         Integrate();
-        elapsedSimulationSteps++;
+        averageFPS = 1 / Time.deltaTime;
     }
 
     // https://lucasschuermann.com/writing/implementing-sph-in-2d
@@ -204,50 +174,45 @@ public class SPH_Manager : MonoBehaviour
         {
             // forward Euler integration
             velocities[i] += dt * forces[i] / mass;
-            _particles[i].Position += dt * velocities[i];
+            Vector3 newPos = _particles[i].transform.position;
+            newPos += dt * velocities[i];
 
             // enforce boundary conditions
-            if (_particles[i].Position.x - float.Epsilon < 0.0f)
+            if (newPos.x - float.Epsilon < 0.0f)
             {
                 velocities[i].x *= damping;
-                _particles[i].Position.x = float.Epsilon;
+                newPos.x = float.Epsilon;
             }
-            else if (_particles[i].Position.x + float.Epsilon > dimensions - 1f)
+            else if (newPos.x + float.Epsilon > dimensions - 1f)
             {
                 velocities[i].x *= damping;
-                _particles[i].Position.x = dimensions - 1 - float.Epsilon;
+                newPos.x = dimensions - 1 - float.Epsilon;
             }
 
-            if (_particles[i].Position.y - float.Epsilon < 0.0f)
+            if (newPos.y - float.Epsilon < 0.0f)
             {
                 velocities[i].y *= damping;
-                _particles[i].Position.y = float.Epsilon;
+                newPos.y = float.Epsilon;
             }
-            else if (_particles[i].Position.y + float.Epsilon > dimensions - 1f)
+            else if (newPos.y + float.Epsilon > dimensions - 1f)
             {
                 velocities[i].y *= damping;
-                _particles[i].Position.y = dimensions - 1 - float.Epsilon;
+                newPos.y = dimensions - 1 - float.Epsilon;
             }
 
-            if (_particles[i].Position.z - float.Epsilon < 0.0f)
+            if (newPos.z - float.Epsilon < 0.0f)
             {
                 velocities[i].z *= damping;
-                _particles[i].Position.z = float.Epsilon;
+                newPos.z = float.Epsilon;
             }
-            else if (_particles[i].Position.z + float.Epsilon > dimensions - 1f)
+            else if (newPos.z + float.Epsilon > dimensions - 1f)
             {
                 velocities[i].z *= damping;
-                _particles[i].Position.z = dimensions - 1 - float.Epsilon;
+                newPos.z = dimensions - 1 - float.Epsilon;
             }
 
             GameObject particleObj = GameObject.Find("particle_" + i);
-            if (!particleObj)
-            {
-                particleObj = Instantiate(particlePrefab, _particles[i].Position, Quaternion.identity);
-                particleObj.transform.name = "particle_" + i;
-            }
-            particleObj.transform.position = _particles[i].Position; 
-            particleObj.transform.localScale = new Vector3(particleRadius, particleRadius, particleRadius); 
+            _particles[i].transform.position = newPos;
         }
     }
 
@@ -261,10 +226,10 @@ public class SPH_Manager : MonoBehaviour
             for (int j = 0; j < _neighbourTracker[i]; j++)
             {
                 int neighbourIndex = _neighbourList[i * maximumParticlesPerCell * 8 + j];
-                float distance = (_particles[i].Position - _particles[neighbourIndex].Position).magnitude;
+                float distance = (_particles[i].transform.position - _particles[neighbourIndex].transform.position).magnitude;
                 if (distance > 0.0f)
                 {
-                    var direction = (_particles[i].Position - _particles[neighbourIndex].Position) / distance;
+                    var direction = (_particles[i].transform.position - _particles[neighbourIndex].transform.position) / distance;
                     // 7. Compute pressure gradient force (Doyub Kim page 136)
                     forces[i] -= mass2 * (pressures[i] / particleDensity2 + pressures[neighbourIndex] / (densities[neighbourIndex] * densities[neighbourIndex])) * SpikyKernelGradient(distance, direction);   // Kim
                     // 8. Compute the viscosity force
@@ -283,12 +248,12 @@ public class SPH_Manager : MonoBehaviour
         {
             // Doyub Kim 121, 122, 123
             // 5. Compute densities
-            Vector3 origin = _particles[i].Position;
+            Vector3 origin = _particles[i].transform.position;
             float sum = 0f;
             for (int j = 0; j < _neighbourTracker[i]; j++)
             {
                 int neighbourIndex = _neighbourList[i * maximumParticlesPerCell * 8 + j];
-                float distanceSquared = (origin - _particles[neighbourIndex].Position).sqrMagnitude;
+                float distanceSquared = (origin - _particles[neighbourIndex].transform.position).sqrMagnitude;
                 sum += StdKernel(distanceSquared);
             }
 
@@ -389,17 +354,6 @@ public class SPH_Manager : MonoBehaviour
         }
 
         return nearbyKeys;
-    }
-
-    private void OnDestroy()
-    {
-        ReleaseBuffers();
-    }
-
-    private void ReleaseBuffers()
-    {
-        _particleColorPositionBuffer.Dispose();
-        _argsBuffer.Dispose();
     }
 }
 
