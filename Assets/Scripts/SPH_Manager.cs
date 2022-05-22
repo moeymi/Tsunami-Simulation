@@ -116,6 +116,12 @@ public class SPH_Manager : MonoBehaviour
 
     #endregion
 
+    private void Update()
+    {
+        averageFPS = 1 / Time.deltaTime;
+    }
+
+
     void FixedUpdate()
     {
         // Calculate hash of all particles and build neighboring list.
@@ -159,7 +165,6 @@ public class SPH_Manager : MonoBehaviour
         ComputeDensityPressure();
         ComputeForces();
         Integrate();
-        averageFPS = 1 / Time.fixedDeltaTime;
     }
 
     // https://lucasschuermann.com/writing/implementing-sph-in-2d
@@ -234,7 +239,7 @@ public class SPH_Manager : MonoBehaviour
             forces[i] += g;
         }
     }
-
+    bool t = false;
     private void ComputeDensityPressure()
     {
         for (int i = 0; i < _particles.Length; i++)
@@ -254,7 +259,11 @@ public class SPH_Manager : MonoBehaviour
 
             // 6. Compute pressure based on density
             pressures[i] = gasConstant * (densities[i] - restDensity); // as described in Müller et al Equation 12
+            if(!t)
+                Debug.Log(pressures[i]);
         }
+
+        t = true;
     }
     public float Poly6(float distSqr, float h)
     {
