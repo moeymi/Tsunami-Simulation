@@ -11,8 +11,7 @@ public class SPH_Manager : MonoBehaviour
     public float radius = 1f; // particle radius, interaction radius h
     public Mesh particleMesh;
     public GameObject particlePrefab;
-    public Vector3 particleSize = Vector3.zero;
-    public float particleRenderSize = 40f;
+    public float particleRadius = 1f;
     public Material material;
     public float mass = 4f;
     public float viscosityCoefficient = 2.5f;
@@ -37,7 +36,6 @@ public class SPH_Manager : MonoBehaviour
     public int elapsedSimulationSteps;
 
     private Particle[] _particles;
-    // Too big for feasible serialisation (crash on expand).
     private int[] _neighbourList; // Stores all neighbours of a particle aligned at 'particleIndex * maximumParticlesPerCell * 8'
     private readonly Dictionary<int, List<int>> _hashGrid = new Dictionary<int, List<int>>();  // Hash of cell to particle indices.
 
@@ -119,7 +117,7 @@ public class SPH_Manager : MonoBehaviour
         _neighbourList = new int[numberOfParticles * maximumParticlesPerCell * 8];   // 8 because we consider 8 cells
         _neighbourTracker = new int[numberOfParticles];
         HashGrid.CellSize = radius * 2; // Setting cell-size h to particle diameter.
-        HashGrid.Dimensions = dimensions;
+        HashGrid.Dimensions = dimensions; 
         for (int i = 0; i < dimensions; i++)
             for (int j = 0; j < dimensions; j++)
                 for (int k = 0; k < dimensions; k++)
@@ -176,7 +174,6 @@ public class SPH_Manager : MonoBehaviour
             var cell = HashGrid.GetCell(_particles[particleIndex].Position);
             var cells = GetNearbyKeys(cell, _particles[particleIndex].Position);
 
-            // ReSharper disable once ForCanBeConvertedToForeach
             for (int j = 0; j < cells.Length; j++)
             {
                 if (!_hashGrid.ContainsKey(cells[j])) continue;
@@ -184,8 +181,8 @@ public class SPH_Manager : MonoBehaviour
                 foreach (var potentialNeighbour in neighbourCell)
                 {
                     if (potentialNeighbour == particleIndex) continue;
-                    // if (( _particles[potentialNeighbour].Position - _particles[particleIndex].Position ).magnitude < radius) // Using magnitude for debug purposes.
-                    if ((_particles[potentialNeighbour].Position - _particles[particleIndex].Position).sqrMagnitude < radius2) // Using squared length instead of magnitude for performance
+
+                    if ((_particles[potentialNeighbour].Position - _particles[particleIndex].Position).magnitude < radius)
                     {
                         _neighbourList[particleIndex * maximumParticlesPerCell * 8 + _neighbourTracker[particleIndex]++] = potentialNeighbour;
                     }
@@ -198,11 +195,6 @@ public class SPH_Manager : MonoBehaviour
         ComputeForces();
         Integrate();
         elapsedSimulationSteps++;
-
-        _particleColorPositionBuffer.SetData(_particles);
-        material.SetFloat(SizeProperty, particleRenderSize);
-        material.SetBuffer(ParticlesBufferProperty, _particleColorPositionBuffer);
-        // Graphics.DrawMeshInstancedIndirect(particleMesh, 0, material, new Bounds(Vector3.zero, new Vector3(100.0f, 100.0f, 100.0f)), _argsBuffer, castShadows: UnityEngine.Rendering.ShadowCastingMode.On);
     }
 
     // https://lucasschuermann.com/writing/implementing-sph-in-2d
@@ -247,6 +239,7 @@ public class SPH_Manager : MonoBehaviour
                 velocities[i].z *= damping;
                 _particles[i].Position.z = dimensions - 1 - float.Epsilon;
             }
+
             GameObject particleObj = GameObject.Find("particle_" + i);
             if (!particleObj)
             {
@@ -254,7 +247,7 @@ public class SPH_Manager : MonoBehaviour
                 particleObj.transform.name = "particle_" + i;
             }
             particleObj.transform.position = _particles[i].Position; 
-            particleObj.transform.localScale = particleSize; 
+            particleObj.transform.localScale = new Vector3(particleRadius, particleRadius, particleRadius); 
         }
     }
 
