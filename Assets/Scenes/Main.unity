@@ -155,10 +155,10 @@ MonoBehaviour:
   radius: 1
   particleMesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
   particlePrefab: {fileID: 8920497686374495318, guid: d46bb1525bc5b0a4c8520e0d0a807383, type: 3}
-  particleSize: 0.5
+  particleRadius: 1
   material: {fileID: 2100000, guid: 0f5c4417513051346a115906ee276c88, type: 2}
   mass: 4
-  viscosityCoefficient: 2.5
+  viscosityCoefficient: 1.008
   restDensity: 1
   damping: -0.5
   numberOfParticles: 1000
