@@ -210,8 +210,6 @@ public class SPH_Manager : MonoBehaviour
                 velocities[i].z *= damping;
                 newPos.z = dimensions - 1 - float.Epsilon;
             }
-
-            GameObject particleObj = GameObject.Find("particle_" + i);
             _particles[i].transform.position = newPos;
         }
     }
@@ -223,6 +221,7 @@ public class SPH_Manager : MonoBehaviour
         {
             forces[i] = Vector3.zero;
             var particleDensity2 = densities[i] * densities[i];
+            Vector3 viscosityForce = Vector3.zero;
             for (int j = 0; j < _neighbourTracker[i]; j++)
             {
                 int neighbourIndex = _neighbourList[i * maximumParticlesPerCell * 8 + j];
@@ -233,9 +232,11 @@ public class SPH_Manager : MonoBehaviour
                     // 7. Compute pressure gradient force (Doyub Kim page 136)
                     forces[i] -= mass2 * (pressures[i] / particleDensity2 + pressures[neighbourIndex] / (densities[neighbourIndex] * densities[neighbourIndex])) * SpikyKernelGradient(distance, direction);   // Kim
                     // 8. Compute the viscosity force
-                    forces[i] += viscosityCoefficient * mass2 * (velocities[neighbourIndex] - velocities[i]) / densities[neighbourIndex] * SpikyKernelSecondDerivative(distance);    // Kim
+                    viscosityForce += mass * (velocities[neighbourIndex] - velocities[i]) / densities[neighbourIndex] * SpikyKernelSecondDerivative(distance);    // Kim
                 }
             }
+            viscosityForce *= viscosityCoefficient;
+            forces[i] += viscosityForce;
 
             // Gravity
             forces[i] += g;
@@ -254,10 +255,10 @@ public class SPH_Manager : MonoBehaviour
             {
                 int neighbourIndex = _neighbourList[i * maximumParticlesPerCell * 8 + j];
                 float distanceSquared = (origin - _particles[neighbourIndex].transform.position).sqrMagnitude;
-                sum += StdKernel(distanceSquared);
+                sum += mass * StdKernel(distanceSquared);
             }
 
-            densities[i] = sum * mass + 0.000001f;
+            densities[i] = sum + 0.000001f;
 
             // 6. Compute pressure based on density
             pressures[i] = gasConstant * (densities[i] - restDensity); // as described in Müller et al Equation 12
