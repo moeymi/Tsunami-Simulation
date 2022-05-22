@@ -1,7 +1,5 @@
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using UnityEngine;
-using Debug = UnityEngine.Debug;
 using Random = UnityEngine.Random;
 
 public class SPH_Manager : MonoBehaviour
@@ -15,8 +13,8 @@ public class SPH_Manager : MonoBehaviour
     public Material material;
     public float mass = 4f;
     public float viscosityCoefficient = 1.008f;
-    private static readonly Vector3 g = new Vector3(0.0f, -9.81f, 0.0f);
-    private const float gasConstant = 8.314f;
+    private static readonly Vector3 g = new Vector3(0.0f, -9.81f * 2000f, 0.0f);
+    private const float gasConstant = 2000f;
     [SerializeField]
     private float restDensity = 1f;
     [SerializeField]
@@ -43,6 +41,10 @@ public class SPH_Manager : MonoBehaviour
     private float radius4;
     private float radius5;
 
+    private float h6;
+    private float h9; 
+
+
     private float[] densities;
     private float[] pressures;
     private Vector3[] forces;
@@ -56,6 +58,9 @@ public class SPH_Manager : MonoBehaviour
         radius3 = radius2 * radius;
         radius4 = radius3 * radius;
         radius5 = radius4 * radius;
+
+        h6 = (Mathf.PI * Mathf.Pow(radius, 6)) ;
+        h9 = (Mathf.PI * Mathf.Pow(radius, 9)); 
     }
 
     #region Initialisation
@@ -111,7 +116,7 @@ public class SPH_Manager : MonoBehaviour
 
     #endregion
 
-    void Update()
+    void FixedUpdate()
     {
         // Calculate hash of all particles and build neighboring list.
         // 1. Clear HashGrid
@@ -163,9 +168,9 @@ public class SPH_Manager : MonoBehaviour
         for (int i = 0; i < numberOfParticles; i++)
         {
             // forward Euler integration
-            velocities[i] += Time.deltaTime * forces[i] / mass;
+            velocities[i] += 0.0008f * forces[i] / mass;
             Vector3 newPos = _particles[i].transform.position;
-            newPos += Time.deltaTime * velocities[i];
+            newPos += 0.0008f * velocities[i];
 
             // enforce boundary conditions
             if (newPos.x - float.Epsilon < 0.0f)
@@ -217,11 +222,10 @@ public class SPH_Manager : MonoBehaviour
                 float distance = (_particles[i].transform.position - _particles[neighbourIndex].transform.position).magnitude;
                 if (distance > 0.0f)
                 {
-                    var direction = (_particles[i].transform.position - _particles[neighbourIndex].transform.position) / distance;
                     // 7. Compute pressure gradient force (Doyub Kim page 136)
-                    forces[i] -= mass2 * (pressures[i] / particleDensity2 + pressures[neighbourIndex] / (densities[neighbourIndex] * densities[neighbourIndex])) * SpikyKernelGradient(distance, direction);   // Kim
+                    forces[i] -= mass2 * (pressures[i] / particleDensity2 + pressures[neighbourIndex] / (densities[neighbourIndex] * densities[neighbourIndex])) * GradientSpiky((_particles[i].transform.position - _particles[neighbourIndex].transform.position), radius);   // Kim
                     // 8. Compute the viscosity force
-                    forces[i] += viscosityCoefficient * mass2 * (velocities[neighbourIndex] - velocities[i]) / densities[neighbourIndex] * SpikyKernelSecondDerivative(distance);    // Kim
+                    forces[i] += viscosityCoefficient * mass2 * (velocities[neighbourIndex] - velocities[i]) / densities[neighbourIndex] * ViscosityLaplacian(distance,radius);    // Kim
                 }
             }
 
@@ -242,18 +246,48 @@ public class SPH_Manager : MonoBehaviour
             {
                 int neighbourIndex = _neighbourList[i * maximumParticlesPerCell * 8 + j];
                 float distanceSquared = (origin - _particles[neighbourIndex].transform.position).sqrMagnitude;
-                sum += StdKernel(distanceSquared);
+                sum += mass * Poly6(distanceSquared,radius);
             }
 
-            densities[i] = sum * mass + 0.000001f;
+            densities[i] = sum  + 0.000001f;
 
             // 6. Compute pressure based on density
             pressures[i] = gasConstant * (densities[i] - restDensity); // as described in Müller et al Equation 12
         }
     }
+    public float Poly6(float distSqr, float h)
+    {
+        float coef = 315f / (64f * h9);
+        float hSqr = h * h;
+
+        if (hSqr < distSqr)
+            return 0f;
+
+        return coef * Mathf.Pow(hSqr - distSqr, 3);
+    }
+
+    public Vector3 GradientSpiky(Vector3 r, float h)
+    {
+        float coef = 45f / h6;
+        float dist = r.magnitude;
+
+        if (h < dist)
+            return Vector3.zero;
+
+        return -coef * r.normalized * Mathf.Pow(h - dist, 2);
+    }
+
+    public float ViscosityLaplacian(float r, float h)
+    {
+        if (h < r)
+            return 0f;
+
+        float coef = 45f / h6;
+        return coef * (h - r);
+    }
 
     // Kernel by Müller et al.
-    private float StdKernel(float distanceSquared)
+   /* private float StdKernel(float distanceSquared)
     {
         // Doyub Kim
         float x = 1.0f - distanceSquared / radius2;
@@ -279,7 +313,7 @@ public class SPH_Manager : MonoBehaviour
     private Vector3 SpikyKernelGradient(float distance, Vector3 directionFromCenter)
     {
         return SpikyKernelFirstDerivative(distance) * directionFromCenter;
-    }
+    }*/
 
     // Derived from Doyub Kim
     private int[] GetNearbyKeys(Vector3Int originIndex, Vector3 position)
