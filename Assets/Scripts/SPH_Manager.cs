@@ -29,8 +29,6 @@ public class SPH_Manager : MonoBehaviour
     [Tooltip("Tracks how many neighbours each particleIndex has in " + nameof(_neighbourList))]
     [SerializeField]
     private int[] _neighbourTracker;
-    [Tooltip("The absolute accumulated simulation steps")]
-    public int elapsedSimulationSteps;
 
     private GameObject[] _particles;
     private int[] _neighbourList; // Stores all neighbours of a particle aligned at 'particleIndex * maximumParticlesPerCell * 8'
@@ -50,6 +48,8 @@ public class SPH_Manager : MonoBehaviour
     private Vector3[] forces;
     private Vector3[] velocities;
 
+    [SerializeField]
+    public float averageFPS;
     private void Awake()
     {
         RespawnParticles();
@@ -159,7 +159,7 @@ public class SPH_Manager : MonoBehaviour
         ComputeDensityPressure();
         ComputeForces();
         Integrate();
-        elapsedSimulationSteps++;
+        averageFPS = 1 / Time.fixedDeltaTime;
     }
 
     // https://lucasschuermann.com/writing/implementing-sph-in-2d
@@ -168,9 +168,9 @@ public class SPH_Manager : MonoBehaviour
         for (int i = 0; i < numberOfParticles; i++)
         {
             // forward Euler integration
-            velocities[i] += 0.0008f * forces[i] / mass;
+            velocities[i] += Time.deltaTime * forces[i] / mass;
             Vector3 newPos = _particles[i].transform.position;
-            newPos += 0.0008f * velocities[i];
+            newPos += Time.deltaTime * velocities[i];
 
             // enforce boundary conditions
             if (newPos.x - float.Epsilon < 0.0f)
@@ -214,6 +214,7 @@ public class SPH_Manager : MonoBehaviour
         float mass2 = mass * mass;
         for (int i = 0; i < _particles.Length; i++)
         {
+            /*
             forces[i] = Vector3.zero;
             var particleDensity2 = densities[i] * densities[i];
             for (int j = 0; j < _neighbourTracker[i]; j++)
@@ -228,7 +229,7 @@ public class SPH_Manager : MonoBehaviour
                     forces[i] += viscosityCoefficient * mass2 * (velocities[neighbourIndex] - velocities[i]) / densities[neighbourIndex] * ViscosityLaplacian(distance,radius);    // Kim
                 }
             }
-
+            */
             // Gravity
             forces[i] += g;
         }

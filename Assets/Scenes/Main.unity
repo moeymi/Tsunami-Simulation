@@ -158,10 +158,10 @@ MonoBehaviour:
   particleRadius: 1
   material: {fileID: 2100000, guid: 0f5c4417513051346a115906ee276c88, type: 2}
   mass: 4
-  viscosityCoefficient: 1.008
+  viscosityCoefficient: 2.5
   restDensity: 1
   damping: -0.5
-  numberOfParticles: 1000
+  numberOfParticles: 100
   dimensions: 10
   maximumParticlesPerCell: 500
   _neighbourTracker: 
