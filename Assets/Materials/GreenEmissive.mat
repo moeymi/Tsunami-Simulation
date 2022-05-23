@@ -11,6 +11,8 @@ Material:
   m_Shader: {fileID: 4800000, guid: 933532a4fcc9baf4fa0491de14d08ed7, type: 3}
   m_ValidKeywords:
   - _EMISSION
+  - _RECEIVE_SHADOWS_OFF
+  - _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
   m_InvalidKeywords: []
   m_LightmapFlags: 2
   m_EnableInstancingVariants: 0
@@ -98,18 +100,18 @@ Material:
     - _OcclusionStrength: 1
     - _Parallax: 0.005
     - _QueueOffset: 0
-    - _ReceiveShadows: 1
-    - _Smoothness: 1
-    - _SmoothnessTextureChannel: 0
+    - _ReceiveShadows: 0
+    - _Smoothness: 0.588
+    - _SmoothnessTextureChannel: 1
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _Surface: 0
     - _WorkflowMode: 1
     - _ZWrite: 1
     m_Colors:
-    - _BaseColor: {r: 1, g: 0, b: 0.077916145, a: 1}
-    - _Color: {r: 1, g: 0, b: 0.077916145, a: 1}
-    - _EmissionColor: {r: 0.050436396, g: 0.8027793, b: 0, a: 1}
+    - _BaseColor: {r: 0.018075943, g: 0, b: 1, a: 1}
+    - _Color: {r: 0.018075943, g: 0, b: 1, a: 1}
+    - _EmissionColor: {r: 0, g: 0.49438456, b: 0.6698113, a: 1}
     - _SpecColor: {r: 0.2, g: 0.2, b: 0.2, a: 1}
   m_BuildTextureStacks: []
 --- !u!114 &816695838714720975

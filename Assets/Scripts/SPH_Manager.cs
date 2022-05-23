@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 using Random = UnityEngine.Random;
@@ -9,15 +10,13 @@ public class SPH_Manager : MonoBehaviour
     // ReSharper disable InconsistentNaming
     [Header("Particle properties")]
     public float radius = 1f; // particle radius, interaction radius h
-    public Mesh particleMesh;
     public GameObject particlePrefab;
     public float particleRadius = 1f;
-    public Material material;
     public float mass = 4f;
     public float viscosityCoefficient = 2.5f;
-    private static readonly Vector3 g = new Vector3(0.0f, -9.81f * 2000f, 0.0f);
-    private const float gasConstant = 2000.0f;
-    private const float dt = 0.0008f;
+    private static readonly Vector3 g = new Vector3(0.0f, -9.81f, 0.0f);
+    private const float gasConstant = 8.315f;
+
     [SerializeField]
     private float restDensity = 1f;
     [SerializeField]
@@ -57,6 +56,15 @@ public class SPH_Manager : MonoBehaviour
     private Vector3[] forces;
     private Vector3[] velocities;
 
+    [InitializeOnLoadMethod]
+    static public void ggg()
+    {
+
+        double bigVal = -1270740000;
+        Debug.Log(bigVal);
+        Debug.Log(bigVal * 0.002483614);
+    }
+
     private void Awake()
     {
         RespawnParticles();
@@ -80,6 +88,8 @@ public class SPH_Manager : MonoBehaviour
         int particlesPerDimension = Mathf.CeilToInt(Mathf.Pow(numberOfParticles, 1f / 3f));
 
         int counter = 0;
+
+        GameObject parentParticle = new GameObject();
         while (counter < numberOfParticles)
         {
             for (int x = 0; x < particlesPerDimension; x++)
@@ -88,6 +98,7 @@ public class SPH_Manager : MonoBehaviour
                     {
                         Vector3 startPos = new Vector3(dimensions - 1, dimensions - 1, dimensions - 1) - new Vector3(x / 2f, y / 2f, z / 2f) - new Vector3(Random.Range(0f, 1f), Random.Range(0f, 1f), Random.Range(0f, 1f));
                         _particles[counter] = Instantiate(particlePrefab);
+                        _particles[counter].transform.parent = parentParticle.transform;
                         _particles[counter].transform.position = startPos;
                         _particles[counter].transform.localScale = new Vector3(particleRadius, particleRadius, particleRadius);
 
@@ -173,9 +184,9 @@ public class SPH_Manager : MonoBehaviour
         for (int i = 0; i < numberOfParticles; i++)
         {
             // forward Euler integration
-            velocities[i] += dt * forces[i] / mass;
+            velocities[i] += Time.deltaTime * forces[i] / mass;
             Vector3 newPos = _particles[i].transform.position;
-            newPos += dt * velocities[i];
+            newPos += Time.deltaTime * velocities[i];
 
             // enforce boundary conditions
             if (newPos.x - float.Epsilon < 0.0f)
@@ -214,6 +225,9 @@ public class SPH_Manager : MonoBehaviour
         }
     }
 
+    float minVal = float.MaxValue;
+    float maxVal = float.MinValue;
+
     private void ComputeForces()
     {
         float mass2 = mass * mass;
@@ -222,6 +236,7 @@ public class SPH_Manager : MonoBehaviour
             forces[i] = Vector3.zero;
             var particleDensity2 = densities[i] * densities[i];
             Vector3 viscosityForce = Vector3.zero;
+            Vector3 surfaceTension = Vector3.zero;
             for (int j = 0; j < _neighbourTracker[i]; j++)
             {
                 int neighbourIndex = _neighbourList[i * maximumParticlesPerCell * 8 + j];
@@ -230,17 +245,33 @@ public class SPH_Manager : MonoBehaviour
                 {
                     var direction = (_particles[i].transform.position - _particles[neighbourIndex].transform.position) / distance;
                     // 7. Compute pressure gradient force (Doyub Kim page 136)
-                    forces[i] -= mass2 * (pressures[i] / particleDensity2 + pressures[neighbourIndex] / (densities[neighbourIndex] * densities[neighbourIndex])) * SpikyKernelGradient(distance, direction);   // Kim
+                    Vector3 kernel = SpikyKernelGradient(distance, direction);
+                    float bigVal = (pressures[i] / particleDensity2 + pressures[neighbourIndex] / (densities[neighbourIndex] * densities[neighbourIndex]));
+                    forces[i] -= mass2 * bigVal * kernel;   // Kim
+
                     // 8. Compute the viscosity force
-                    viscosityForce += mass * (velocities[neighbourIndex] - velocities[i]) / densities[neighbourIndex] * SpikyKernelSecondDerivative(distance);    // Kim
+                    Vector3 visc = (velocities[neighbourIndex] - velocities[i]) / densities[neighbourIndex];
+                    float kernelVis = SpikyKernelSecondDerivative(distance);
+                    viscosityForce += mass * visc * kernelVis;  // Kim
+
+                    surfaceTension += mass * (1 / densities[neighbourIndex]) * SpikyKernelGradient(distance, direction);
+
                 }
             }
             viscosityForce *= viscosityCoefficient;
             forces[i] += viscosityForce;
+            forces[i] += surfaceTension;
 
             // Gravity
             forces[i] += g;
+            if (forces[i].magnitude != 0)
+            {
+                minVal = Mathf.Min(minVal, forces[i].magnitude);
+                maxVal = Mathf.Max(maxVal, forces[i].magnitude);
+            }
         }
+        Debug.Log(minVal);
+        Debug.Log(maxVal);
     }
 
     private void ComputeDensityPressure()
@@ -254,11 +285,13 @@ public class SPH_Manager : MonoBehaviour
             for (int j = 0; j < _neighbourTracker[i]; j++)
             {
                 int neighbourIndex = _neighbourList[i * maximumParticlesPerCell * 8 + j];
-                float distanceSquared = (origin - _particles[neighbourIndex].transform.position).sqrMagnitude;
-                sum += mass * StdKernel(distanceSquared);
+                float distance = (origin - _particles[neighbourIndex].transform.position).magnitude;
+                sum += mass * StdKernel(distance);
             }
-
-            densities[i] = sum + 0.000001f;
+            if(sum == 0)
+                densities[i] = 1;
+            else
+                densities[i] = sum + 0.000001f;
 
             // 6. Compute pressure based on density
             pressures[i] = gasConstant * (densities[i] - restDensity); // as described in Müller et al Equation 12
