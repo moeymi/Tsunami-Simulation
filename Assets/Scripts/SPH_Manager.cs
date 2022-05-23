@@ -231,12 +231,17 @@ public class SPH_Manager : MonoBehaviour
     private void ComputeForces()
     {
         float mass2 = mass * mass;
+        Vector3 CS_D1 = Vector3.zero;
+        float CS_D2 = 0f;
+        float K = 0f;
+        float surfaceTensionCo = (72/300f);
+        
         for (int i = 0; i < _particles.Length; i++)
         {
             forces[i] = Vector3.zero;
             var particleDensity2 = densities[i] * densities[i];
             Vector3 viscosityForce = Vector3.zero;
-            Vector3 surfaceTension = Vector3.zero;
+            Vector3 surfaceTensionForce = Vector3.zero;
             for (int j = 0; j < _neighbourTracker[i]; j++)
             {
                 int neighbourIndex = _neighbourList[i * maximumParticlesPerCell * 8 + j];
@@ -254,13 +259,19 @@ public class SPH_Manager : MonoBehaviour
                     float kernelVis = SpikyKernelSecondDerivative(distance);
                     viscosityForce += mass * visc * kernelVis;  // Kim
 
-                    surfaceTension += mass * (1 / densities[neighbourIndex]) * SpikyKernelGradient(distance, direction);
+                    //Compute Surface Tension 
+                    CS_D1 = mass * (1 / densities[neighbourIndex]) * SpikyKernelGradient(distance, direction);
+                    CS_D2 = mass * (1 / densities[neighbourIndex]) * SpikyKernelSecondDerivative(distance);
+                    K = -CS_D2 / CS_D1.magnitude;
+                    if (CS_D1.magnitude > 0.2)
+                        surfaceTensionForce += surfaceTensionCo * K * CS_D1;
+
 
                 }
             }
             viscosityForce *= viscosityCoefficient;
             forces[i] += viscosityForce;
-            forces[i] += surfaceTension;
+            forces[i] += surfaceTensionForce;
 
             // Gravity
             forces[i] += g;
@@ -270,8 +281,8 @@ public class SPH_Manager : MonoBehaviour
                 maxVal = Mathf.Max(maxVal, forces[i].magnitude);
             }
         }
-        Debug.Log(minVal);
-        Debug.Log(maxVal);
+        //Debug.Log(minVal);
+        //Debug.Log(maxVal);
     }
 
     private void ComputeDensityPressure()
