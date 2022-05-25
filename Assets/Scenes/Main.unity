@@ -159,7 +159,7 @@ MonoBehaviour:
   viscosityCoefficient: 1.0008
   restDensity: 1
   damping: -0.2
-  numberOfParticles: 10000
+  numberOfParticles: 1000
   dimensions: 15
   maximumParticlesPerCell: 500
   _neighbourTracker: 
@@ -461,22 +461,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 56ad99256a95b3f4c9fc6900de654099, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  radius: 2
+  radius: 1.35
   particleMesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
   particleRenderSize: 2
   material: {fileID: 2100000, guid: a82148cccbb6e2a4f9205fcfd499a383, type: 2}
-  mass: 1
+  mass: 4
   gasConstant: 8.314
-  restDensity: 9
-  viscosityCoefficient: 2.5
+  restDensity: 1
+  viscosityCoefficient: 1.0008
   g:
   - 0
   - -9.81
   - 0
-  damping: -0.37
-  numberOfParticles: 10000
-  dimensions: 100
-  maximumParticlesPerCell: 130
+  damping: -0.2
+  numberOfParticles: 1000
+  dimensions: 15
+  maximumParticlesPerCell: 500
   averageFPS: 0
   _hashGridTracker: 
   computeShader: {fileID: 7200000, guid: 4130f60e91af7724297d279f8f58fa69, type: 3}

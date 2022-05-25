@@ -54,7 +54,7 @@ Shader "Example/URPUnlitShaderNormal"
 
                 Varyings OUT;
                 OUT.position = finalPos;
-                OUT.normal = TransformObjectToWorldNormal(IN.normal);
+                OUT.normal = IN.normal;
                 return OUT;
             }
 

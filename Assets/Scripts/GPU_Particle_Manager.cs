@@ -7,7 +7,6 @@ public class GPU_Particle_Manager : MonoBehaviour
     [Header("Particle properties")]
     public float radius = 1f;  // particle radius
     public Mesh particleMesh;
-    public float particleRenderSize = 1f;
     public Material material;
     public float mass = 4f;
     public float gasConstant = 8.314f;
