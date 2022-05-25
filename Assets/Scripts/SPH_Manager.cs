@@ -55,16 +55,6 @@ public class SPH_Manager : MonoBehaviour
     private float[] pressures;
     private Vector3[] forces;
     private Vector3[] velocities;
-
-    [InitializeOnLoadMethod]
-    static public void ggg()
-    {
-
-        double bigVal = -1270740000;
-        Debug.Log(bigVal);
-        Debug.Log(bigVal * 0.002483614);
-    }
-
     private void Awake()
     {
         RespawnParticles();
@@ -248,7 +238,7 @@ public class SPH_Manager : MonoBehaviour
                 float distance = (_particles[i].transform.position - _particles[neighbourIndex].transform.position).magnitude;
                 if (distance > 0.0f)
                 {
-                    var direction = (_particles[i].transform.position - _particles[neighbourIndex].transform.position) / distance;
+                    var direction = (_particles[i].transform.position - _particles[neighbourIndex].transform.position).normalized;
                     // 7. Compute pressure gradient force (Doyub Kim page 136)
                     Vector3 kernel = SpikyKernelGradient(distance, direction);
                     float bigVal = (pressures[i] / particleDensity2 + pressures[neighbourIndex] / (densities[neighbourIndex] * densities[neighbourIndex]));
@@ -299,10 +289,7 @@ public class SPH_Manager : MonoBehaviour
                 float distance = (origin - _particles[neighbourIndex].transform.position).magnitude;
                 sum += mass * StdKernel(distance);
             }
-            if(sum == 0)
-                densities[i] = 1;
-            else
-                densities[i] = sum + 0.000001f;
+            densities[i] = sum + 0.000001f;
 
             // 6. Compute pressure based on density
             pressures[i] = gasConstant * (densities[i] - restDensity); // as described in Müller et al Equation 12

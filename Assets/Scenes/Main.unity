@@ -139,7 +139,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &181817654
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -153,15 +153,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   radius: 1.35
-  particleMesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
   particlePrefab: {fileID: 8920497686374495318, guid: d46bb1525bc5b0a4c8520e0d0a807383, type: 3}
   particleRadius: 1.5
-  material: {fileID: 2100000, guid: 0f5c4417513051346a115906ee276c88, type: 2}
   mass: 4
   viscosityCoefficient: 1.0008
   restDensity: 1
   damping: -0.2
-  numberOfParticles: 500
+  numberOfParticles: 10000
   dimensions: 15
   maximumParticlesPerCell: 500
   _neighbourTracker: 
@@ -366,9 +364,9 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.3
+  near clip plane: 0.01
   far clip plane: 1000
-  field of view: 60
+  field of view: 127.2
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
@@ -394,7 +392,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 457347627}
   m_LocalRotation: {x: 0.08715578, y: 0, z: 0, w: 0.9961947}
-  m_LocalPosition: {x: 0, y: 6.88, z: -13.95}
+  m_LocalPosition: {x: 0, y: 0, z: -18}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -434,3 +432,66 @@ MonoBehaviour:
   m_RequiresDepthTexture: 0
   m_RequiresColorTexture: 0
   m_Version: 2
+--- !u!1 &1385575679
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1385575681}
+  - component: {fileID: 1385575680}
+  m_Layer: 0
+  m_Name: GPUManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1385575680
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1385575679}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 56ad99256a95b3f4c9fc6900de654099, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  radius: 2
+  particleMesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
+  particleRenderSize: 2
+  material: {fileID: 2100000, guid: a82148cccbb6e2a4f9205fcfd499a383, type: 2}
+  mass: 1
+  gasConstant: 8.314
+  restDensity: 9
+  viscosityCoefficient: 2.5
+  g:
+  - 0
+  - -9.81
+  - 0
+  damping: -0.37
+  numberOfParticles: 10000
+  dimensions: 100
+  maximumParticlesPerCell: 130
+  averageFPS: 0
+  _hashGridTracker: 
+  computeShader: {fileID: 7200000, guid: 4130f60e91af7724297d279f8f58fa69, type: 3}
+--- !u!4 &1385575681
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1385575679}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 3
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
