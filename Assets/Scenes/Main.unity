@@ -152,17 +152,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7363e9f3dbaf73547975ee58203783b0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  radius: 1.35
-  particleMesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
+  radius: 1
   particlePrefab: {fileID: 8920497686374495318, guid: d46bb1525bc5b0a4c8520e0d0a807383, type: 3}
-  particleRadius: 1.5
-  material: {fileID: 2100000, guid: 0f5c4417513051346a115906ee276c88, type: 2}
-  mass: 4
-  viscosityCoefficient: 1.0008
-  restDensity: 1
-  damping: -0.2
+  particleRadius: 1
+  mass: 0.02
+  viscosityCoefficient: 1.04
+  g: {x: 0, y: -9.81, z: 0}
+  gasConstant: 1
+  restDensity: 100
+  damping: -0.5
   numberOfParticles: 500
-  dimensions: 15
+  dimensions: 10
   maximumParticlesPerCell: 500
   _neighbourTracker: 
   averageFPS: 0
@@ -394,7 +394,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 457347627}
   m_LocalRotation: {x: 0.08715578, y: 0, z: 0, w: 0.9961947}
-  m_LocalPosition: {x: 0, y: 6.88, z: -13.95}
+  m_LocalPosition: {x: 4.3, y: 6.1, z: -9.6}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

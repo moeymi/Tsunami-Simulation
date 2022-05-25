@@ -7,15 +7,15 @@ using Random = UnityEngine.Random;
 
 public class SPH_Manager : MonoBehaviour
 {
-    // ReSharper disable InconsistentNaming
+    #region Simulation Constants
     [Header("Particle properties")]
     public float radius = 1f; // particle radius, interaction radius h
     public GameObject particlePrefab;
     public float particleRadius = 1f;
     public float mass = 4f;
     public float viscosityCoefficient = 2.5f;
-    private static readonly Vector3 g = new Vector3(0.0f, -9.81f, 0.0f);
-    private const float gasConstant = 8.315f;
+    public Vector3 g = new Vector3(0.0f, -9.81f, 0.0f);
+    public float gasConstant = 1f;
 
     [SerializeField]
     private float restDensity = 1f;
@@ -33,6 +33,7 @@ public class SPH_Manager : MonoBehaviour
     private int[] _neighbourTracker;
 
     public float averageFPS;
+    #endregion
 
     private GameObject[] _particles;
     private int[] _neighbourList; // Stores all neighbours of a particle aligned at 'particleIndex * maximumParticlesPerCell * 8'
@@ -42,28 +43,11 @@ public class SPH_Manager : MonoBehaviour
     private float radius3;
     private float radius4;
     private float radius5;
-    // ReSharper restore InconsistentNaming
-
-    [StructLayout(LayoutKind.Sequential, Size = 28)]
-    private struct Particle
-    {
-        public Vector3 Position;
-        public Vector4 Color;
-    }
 
     private float[] densities;
     private float[] pressures;
     private Vector3[] forces;
     private Vector3[] velocities;
-
-    [InitializeOnLoadMethod]
-    static public void ggg()
-    {
-
-        double bigVal = -1270740000;
-        Debug.Log(bigVal);
-        Debug.Log(bigVal * 0.002483614);
-    }
 
     private void Awake()
     {
@@ -132,7 +116,7 @@ public class SPH_Manager : MonoBehaviour
 
     #endregion
 
-    void Update()
+    void FixedUpdate()
     {
         // Calculate hash of all particles and build neighboring list.
         // 1. Clear HashGrid
@@ -163,7 +147,7 @@ public class SPH_Manager : MonoBehaviour
                 {
                     if (potentialNeighbour == particleIndex) continue;
 
-                    if ((_particles[potentialNeighbour].transform.position - _particles[particleIndex].transform.position).magnitude < radius)
+                    if ((_particles[potentialNeighbour].transform.position - _particles[particleIndex].transform.position).sqrMagnitude < radius2)
                     {
                         _neighbourList[particleIndex * maximumParticlesPerCell * 8 + _neighbourTracker[particleIndex]++] = potentialNeighbour;
                     }
@@ -178,15 +162,68 @@ public class SPH_Manager : MonoBehaviour
         averageFPS = 1 / Time.deltaTime;
     }
 
+    private void ComputeDensityPressure()
+    {
+        for (int i = 0; i < _particles.Length; i++)
+        {
+            Vector3 origin = _particles[i].transform.position;
+            float sum = 0f;
+            for (int j = 0; j < _neighbourTracker[i]; j++)
+            {
+                int neighbourIndex = _neighbourList[i * maximumParticlesPerCell * 8 + j];
+                float distanceSqr = (origin - _particles[neighbourIndex].transform.position).sqrMagnitude;
+                sum += mass * Kernels.Poly6New(radius) * Mathf.Pow(distanceSqr - radius2, 2);
+            }
+
+            // self density
+            sum += mass * Kernels.Poly6New(radius) * Mathf.Pow(radius, 6);
+
+            densities[i] = sum;
+
+            // Compute pressure based on density
+            pressures[i] = gasConstant * (densities[i] - restDensity);
+        }
+    }
+
+    public void ComputeForces()
+    {
+        for (int i = 0; i < _particles.Length; i++)
+        {
+            forces[i] = Vector3.zero;
+            for (int j = 0; j < _neighbourTracker[i]; j++)
+            {
+                int neighbourIndex = _neighbourList[i * maximumParticlesPerCell * 8 + j];
+                float distance = (_particles[i].transform.position - _particles[neighbourIndex].transform.position).magnitude;
+                Vector3 direction = (_particles[i].transform.position - _particles[neighbourIndex].transform.position).normalized;
+
+                //Pressure force 
+                Vector3 pressureForce = (-direction * mass) * (pressures[i] + pressures[neighbourIndex]) / (2 * densities[neighbourIndex]);
+                pressureForce *= Kernels.GradientSpikyNew(distance, radius);
+                forces[i] += pressureForce;
+
+                // Viscosity 
+                Vector3 velocityDiff = velocities[neighbourIndex] - velocities[i];
+                Vector3 viscoForce = viscosityCoefficient * mass * (velocityDiff / densities[neighbourIndex]) * Kernels.ViscosityLaplacian(distance, radius);
+                forces[i] += viscoForce;
+            }
+            // Gravity
+            forces[i] += g;
+        }
+    }
+
     // https://lucasschuermann.com/writing/implementing-sph-in-2d
     private void Integrate()
     {
         for (int i = 0; i < numberOfParticles; i++)
         {
             // forward Euler integration
-            velocities[i] += Time.deltaTime * forces[i] / mass;
+            Vector3 acceleration = forces[i] / densities[i];
+            velocities[i] += acceleration * Time.fixedDeltaTime; 
+
+            //velocities[i] += Time.deltaTime * forces[i] / mass;
+
             Vector3 newPos = _particles[i].transform.position;
-            newPos += Time.deltaTime * velocities[i];
+            newPos += Time.fixedDeltaTime * velocities[i];
 
             // enforce boundary conditions
             if (newPos.x - float.Epsilon < 0.0f)
@@ -228,117 +265,6 @@ public class SPH_Manager : MonoBehaviour
     float minVal = float.MaxValue;
     float maxVal = float.MinValue;
 
-    private void ComputeForces()
-    {
-        float mass2 = mass * mass;
-        Vector3 CS_D1 = Vector3.zero;
-        float CS_D2 = 0f;
-        float K = 0f;
-        float surfaceTensionCo = (72/300f);
-        
-        for (int i = 0; i < _particles.Length; i++)
-        {
-            forces[i] = Vector3.zero;
-            var particleDensity2 = densities[i] * densities[i];
-            Vector3 viscosityForce = Vector3.zero;
-            Vector3 surfaceTensionForce = Vector3.zero;
-            for (int j = 0; j < _neighbourTracker[i]; j++)
-            {
-                int neighbourIndex = _neighbourList[i * maximumParticlesPerCell * 8 + j];
-                float distance = (_particles[i].transform.position - _particles[neighbourIndex].transform.position).magnitude;
-                if (distance > 0.0f)
-                {
-                    var direction = (_particles[i].transform.position - _particles[neighbourIndex].transform.position) / distance;
-                    // 7. Compute pressure gradient force (Doyub Kim page 136)
-                    Vector3 kernel = SpikyKernelGradient(distance, direction);
-                    float bigVal = (pressures[i] / particleDensity2 + pressures[neighbourIndex] / (densities[neighbourIndex] * densities[neighbourIndex]));
-                    forces[i] -= mass2 * bigVal * kernel;   // Kim
-
-                    // 8. Compute the viscosity force
-                    Vector3 visc = (velocities[neighbourIndex] - velocities[i]) / densities[neighbourIndex];
-                    float kernelVis = SpikyKernelSecondDerivative(distance);
-                    viscosityForce += mass * visc * kernelVis;  // Kim
-
-                    //Compute Surface Tension 
-                    CS_D1 = mass * (1 / densities[neighbourIndex]) * SpikyKernelGradient(distance, direction);
-                    CS_D2 = mass * (1 / densities[neighbourIndex]) * SpikyKernelSecondDerivative(distance);
-                    K = -CS_D2 / CS_D1.magnitude;
-                    if (CS_D1.magnitude > 0.2)
-                        surfaceTensionForce += surfaceTensionCo * K * CS_D1;
-
-
-                }
-            }
-            viscosityForce *= viscosityCoefficient;
-            forces[i] += viscosityForce;
-            forces[i] += surfaceTensionForce;
-
-            // Gravity
-            forces[i] += g;
-            if (forces[i].magnitude != 0)
-            {
-                minVal = Mathf.Min(minVal, forces[i].magnitude);
-                maxVal = Mathf.Max(maxVal, forces[i].magnitude);
-            }
-        }
-        //Debug.Log(minVal);
-        //Debug.Log(maxVal);
-    }
-
-    private void ComputeDensityPressure()
-    {
-        for (int i = 0; i < _particles.Length; i++)
-        {
-            // Doyub Kim 121, 122, 123
-            // 5. Compute densities
-            Vector3 origin = _particles[i].transform.position;
-            float sum = 0f;
-            for (int j = 0; j < _neighbourTracker[i]; j++)
-            {
-                int neighbourIndex = _neighbourList[i * maximumParticlesPerCell * 8 + j];
-                float distance = (origin - _particles[neighbourIndex].transform.position).magnitude;
-                sum += mass * StdKernel(distance);
-            }
-            if(sum == 0)
-                densities[i] = 1;
-            else
-                densities[i] = sum + 0.000001f;
-
-            // 6. Compute pressure based on density
-            pressures[i] = gasConstant * (densities[i] - restDensity); // as described in Müller et al Equation 12
-        }
-    }
-
-    // Kernel by Müller et al.
-    private float StdKernel(float distanceSquared)
-    {
-        // Doyub Kim
-        float x = 1.0f - distanceSquared / radius2;
-        return 315f / (64f * Mathf.PI * radius3) * x * x * x;
-    }
-
-    // Doyub Kim page 130
-    private float SpikyKernelFirstDerivative(float distance)
-    {
-        float x = 1.0f - distance / radius;
-        return -45.0f / (Mathf.PI * radius4) * x * x;
-    }
-
-    // Doyub Kim page 130
-    private float SpikyKernelSecondDerivative(float distance)
-    {
-        // Btw, it derives 'distance' not 'radius' (h)
-        float x = 1.0f - distance / radius;
-        return 90f / (Mathf.PI * radius5) * x;
-    }
-
-    // Doyub Kim page 130
-    private Vector3 SpikyKernelGradient(float distance, Vector3 directionFromCenter)
-    {
-        return SpikyKernelFirstDerivative(distance) * directionFromCenter;
-    }
-
-    // Derived from Doyub Kim
     private int[] GetNearbyKeys(Vector3Int originIndex, Vector3 position)
     {
         Vector3Int[] nearbyBucketIndices = new Vector3Int[8];
@@ -400,5 +326,129 @@ public class SPH_Manager : MonoBehaviour
 
         return nearbyKeys;
     }
+
+
+    #region OLD COMPUTE METHODS
+    private void ComputeForces2()
+    {
+        float mass2 = mass * mass;
+        Vector3 CS_D1 = Vector3.zero;
+        float CS_D2 = 0f;
+        float K = 0f;
+        float surfaceTensionCo = (72 / 300f);
+
+        for (int i = 0; i < _particles.Length; i++)
+        {
+            forces[i] = Vector3.zero;
+            var particleDensity2 = densities[i] * densities[i];
+            Vector3 viscosityForce = Vector3.zero;
+            Vector3 surfaceTensionForce = Vector3.zero;
+            for (int j = 0; j < _neighbourTracker[i]; j++)
+            {
+                int neighbourIndex = _neighbourList[i * maximumParticlesPerCell * 8 + j];
+                float distance = (_particles[i].transform.position - _particles[neighbourIndex].transform.position).magnitude;
+                Debug.Log(i + " distance = " + distance);
+                if (distance > 0)
+                {
+                    var direction = (_particles[i].transform.position - _particles[neighbourIndex].transform.position).normalized;
+
+                    //Vector3 kernel = SpikyKernelGradient(distance, direction);
+                    Vector3 kernel = Kernels.GradientSpiky((_particles[i].transform.position - _particles[neighbourIndex].transform.position), radius);
+                    float bigVal = (pressures[i] / particleDensity2 + pressures[neighbourIndex] / (densities[neighbourIndex] * densities[neighbourIndex]));
+                    forces[i] -= mass2 * bigVal * kernel;
+                    Debug.Log(i + " Density = " + densities[i]);
+                    Debug.Log(i + " Pressures = " + forces[i]);
+
+                    // 8. Compute the viscosity force
+                    Vector3 visc = (velocities[neighbourIndex] - velocities[i]) / densities[neighbourIndex];
+                    //float kernelVis = SpikyKernelSecondDerivative(distance);
+                    float kernelVis = Kernels.ViscosityLaplacian(distance, radius);
+                    viscosityForce += mass * visc * kernelVis;  // Kim
+
+                    //Compute Surface Tension 
+                    CS_D1 = mass * (1 / densities[neighbourIndex]) * Kernels.GradientSpiky((_particles[i].transform.position - _particles[neighbourIndex].transform.position), radius);
+                    CS_D2 = mass * (1 / densities[neighbourIndex]) * Kernels.ViscosityLaplacian(distance, radius);
+                    K = -CS_D2 / CS_D1.magnitude;
+                    if (CS_D1.magnitude > 0.2)
+                        surfaceTensionForce += surfaceTensionCo * K * CS_D1;
+
+
+                }
+            }
+            viscosityForce *= viscosityCoefficient;
+            forces[i] += viscosityForce;
+            forces[i] += surfaceTensionForce;
+            Debug.Log(i + " viscosityForce = " + viscosityForce);
+            Debug.Log(i + " surfaceTensionForce = " + surfaceTensionForce);
+
+            // Gravity
+            forces[i] += g;
+            if (forces[i].magnitude != 0)
+            {
+                minVal = Mathf.Min(minVal, forces[i].magnitude);
+                maxVal = Mathf.Max(maxVal, forces[i].magnitude);
+            }
+        }
+    }
+
+    private void ComputeDensityPressure2()
+    {
+        for (int i = 0; i < _particles.Length; i++)
+        {
+            Vector3 origin = _particles[i].transform.position;
+            float sum = 0f;
+            for (int j = 0; j < _neighbourTracker[i]; j++)
+            {
+                /*                int neighbourIndex = _neighbourList[i * maximumParticlesPerCell * 8 + j];
+                                float distance = (origin - _particles[neighbourIndex].transform.position).sqrMagnitude;*/
+                //sum += mass * StdKernel(distance);
+                int neighbourIndex = _neighbourList[i * maximumParticlesPerCell * 8 + j];
+                float distanceSqr = (origin - _particles[neighbourIndex].transform.position).sqrMagnitude;
+                sum += mass * Kernels.Poly6New(radius) * Mathf.Pow(distanceSqr - radius2, 2);
+            }
+
+            //self density
+            sum += mass * Kernels.Poly6New(radius) * Mathf.Pow(radius, 6);
+
+            densities[i] = sum;
+
+            // 6. Compute pressure based on density
+            pressures[i] = gasConstant * (densities[i] - restDensity);
+        }
+    }
+
+    // Kernel by Müller et al.
+    private float StdKernel(float distanceSquared)
+    {
+        // Doyub Kim
+        float x = 1.0f - distanceSquared / radius2;
+        return 315f / (64f * Mathf.PI * radius3) * x * x * x;
+    }
+
+    // Doyub Kim page 130
+    private float SpikyKernelFirstDerivative(float distance)
+    {
+        float x = 1.0f - distance / radius;
+        return -45.0f / (Mathf.PI * radius4) * x * x;
+    }
+
+    // Doyub Kim page 130
+    private float SpikyKernelSecondDerivative(float distance)
+    {
+        // Btw, it derives 'distance' not 'radius' (h)
+        float x = 1.0f - distance / radius;
+        return 90f / (Mathf.PI * radius5) * x;
+    }
+
+    // Doyub Kim page 130
+    private Vector3 SpikyKernelGradient(float distance, Vector3 directionFromCenter)
+    {
+        return SpikyKernelFirstDerivative(distance) * directionFromCenter;
+    }
+
+    #endregion
+
+
+
 }
 
