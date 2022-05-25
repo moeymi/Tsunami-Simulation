@@ -156,12 +156,12 @@ MonoBehaviour:
   particlePrefab: {fileID: 8920497686374495318, guid: d46bb1525bc5b0a4c8520e0d0a807383, type: 3}
   particleRadius: 1
   mass: 0.02
-  viscosityCoefficient: 1.04
+  viscosityCoefficient: 0.1
   g: {x: 0, y: -9.81, z: 0}
   gasConstant: 1
   restDensity: 100
-  damping: -0.5
-  numberOfParticles: 500
+  damping: -0.9
+  numberOfParticles: 300
   dimensions: 10
   maximumParticlesPerCell: 500
   _neighbourTracker: 
