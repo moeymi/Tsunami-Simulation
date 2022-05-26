@@ -139,7 +139,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &181817654
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -152,14 +152,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7363e9f3dbaf73547975ee58203783b0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  radius: 1
+  radius: 1.5
   particlePrefab: {fileID: 8920497686374495318, guid: d46bb1525bc5b0a4c8520e0d0a807383, type: 3}
   particleRadius: 1
-  mass: 0.02
+  mass: 0.05
   viscosityCoefficient: 0.1
   g: {x: 0, y: -9.81, z: 0}
   gasConstant: 1
-  restDensity: 100
+  restDensity: 50
   damping: -0.9
   numberOfParticles: 300
   dimensions: 10
@@ -434,3 +434,65 @@ MonoBehaviour:
   m_RequiresDepthTexture: 0
   m_RequiresColorTexture: 0
   m_Version: 2
+--- !u!1 &2061227348
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2061227350}
+  - component: {fileID: 2061227349}
+  m_Layer: 0
+  m_Name: GPUManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2061227349
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2061227348}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 56ad99256a95b3f4c9fc6900de654099, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  radius: 1.5
+  particleMesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
+  material: {fileID: 2100000, guid: a82148cccbb6e2a4f9205fcfd499a383, type: 2}
+  mass: 0.02
+  gasConstant: 1
+  restDensity: 50
+  viscosityCoefficient: 0.1
+  g:
+  - 0
+  - -9.81
+  - 0
+  damping: -0.9
+  numberOfParticles: 10000
+  dimensions: 10
+  maximumParticlesPerCell: 500
+  averageFPS: 0
+  _hashGridTracker: 
+  computeShader: {fileID: 7200000, guid: 4130f60e91af7724297d279f8f58fa69, type: 3}
+--- !u!4 &2061227350
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2061227348}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 3.538496, y: -13.6374035, z: 31.199608}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 3
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}

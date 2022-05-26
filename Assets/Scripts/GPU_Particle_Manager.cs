@@ -182,6 +182,7 @@ public class GPU_Particle_Manager : MonoBehaviour
 
         _densitiesBuffer = new ComputeBuffer(numberOfParticles, sizeof(float));
         _densitiesBuffer.SetData(_densities);
+        Debug.Log(_densitiesBuffer.count);
         _pressuresBuffer = new ComputeBuffer(numberOfParticles, sizeof(float));
         _pressuresBuffer.SetData(_pressures);
 
@@ -219,6 +220,7 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader.SetBuffer(integrateKernel, "_particles", _particlesBuffer);
         computeShader.SetBuffer(integrateKernel, "_forces", _forcesBuffer);
         computeShader.SetBuffer(integrateKernel, "_velocities", _velocitiesBuffer);
+        computeShader.SetBuffer(integrateKernel, "_densities", _densitiesBuffer);
     }
 
     #endregion
@@ -226,12 +228,12 @@ public class GPU_Particle_Manager : MonoBehaviour
     void Update()
     {
         computeShader.SetFloat("dt", Time.deltaTime);
-        computeShader.Dispatch(clearHashGridKernel, dimensions * dimensions * dimensions / 128, 1, 1);
-        computeShader.Dispatch(recalculateHashGridKernel, numberOfParticles / 128, 1, 1);
-        computeShader.Dispatch(buildNeighbourListKernel, numberOfParticles / 128, 1, 1);
-        computeShader.Dispatch(computeDensityPressureKernel, numberOfParticles / 128, 1, 1);
-        computeShader.Dispatch(computeForcesKernel, numberOfParticles / 128, 1, 1);
-        computeShader.Dispatch(integrateKernel, numberOfParticles / 128, 1, 1);
+        computeShader.Dispatch(clearHashGridKernel, dimensions * dimensions * dimensions / 100, 1, 1);
+        computeShader.Dispatch(recalculateHashGridKernel, numberOfParticles / 100, 1, 1);
+        computeShader.Dispatch(buildNeighbourListKernel, numberOfParticles / 100, 1, 1);
+        computeShader.Dispatch(computeDensityPressureKernel, numberOfParticles / 100, 1, 1);
+        computeShader.Dispatch(computeForcesKernel, numberOfParticles / 100, 1, 1);
+        computeShader.Dispatch(integrateKernel, numberOfParticles / 100, 1, 1);
 
         material.SetBuffer(ParticlesBufferProperty, _particlesBuffer);
         Graphics.DrawMeshInstancedIndirect(particleMesh, 0, material, new Bounds(Vector3.zero, new Vector3(100.0f, 100.0f, 100.0f)), _argsBuffer, castShadows: 0);

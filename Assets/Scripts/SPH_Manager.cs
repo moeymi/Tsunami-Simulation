@@ -116,7 +116,7 @@ public class SPH_Manager : MonoBehaviour
 
     #endregion
 
-    void FixedUpdate()
+    void Update()
     {
         // Calculate hash of all particles and build neighboring list.
         // 1. Clear HashGrid
@@ -218,12 +218,12 @@ public class SPH_Manager : MonoBehaviour
         {
             // forward Euler integration
             Vector3 acceleration = forces[i] / densities[i];
-            velocities[i] += acceleration * Time.fixedDeltaTime; 
+            velocities[i] += acceleration * 0.016f; 
 
             //velocities[i] += Time.deltaTime * forces[i] / mass;
 
             Vector3 newPos = _particles[i].transform.position;
-            newPos += Time.fixedDeltaTime * velocities[i];
+            newPos += 0.016f * velocities[i];
 
             // enforce boundary conditions
             if (newPos.x - float.Epsilon < 0.0f)
