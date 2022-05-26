@@ -18,13 +18,7 @@ int Hash(int3 cell)
     return cell.x + Dimensions * (cell.y + Dimensions * cell.z);
 }
 
-struct Particle
-{
-    float3 Position;
-    float4 Color;
-};
-
-RWStructuredBuffer<Particle> _particles;
+RWStructuredBuffer<float3> _particles;
 RWStructuredBuffer<int> _neighbourList; // Stores all neighbours of a particle aligned at 'particleIndex * maximumParticlesPerCell * 8'
 RWStructuredBuffer<int> _neighbourTracker; // How many neighbours does each particle contain.
 RWStructuredBuffer<uint> _hashGrid; // aligned at 'particleIndex * maximumParticlesPerCell * 8' + _hashGridTracker[particleIndex]
@@ -52,18 +46,18 @@ float epsilon;
 float pi;
 
 // Fake clear actually, only writes 0 to the hashGridTracker.
-[numthreads(100,1,1)]
+[numthreads(128,1,1)]
 void ClearHashGrid(uint3 id : SV_DispatchThreadID)
 {
     _hashGridTracker[id.x] = 0;
     // NeighbourTracker is (fake) cleared in the neighbour-list-building kernel
 }
 
-[numthreads(100,1,1)]
+[numthreads(128,1,1)]
 void RecalculateHashGrid(uint3 id : SV_DispatchThreadID)
 {
     int previousCount = 0;
-    const int cellHash = Hash(GetCell(_particles[id.x].Position));
+    const int cellHash = Hash(GetCell(_particles[id.x]));
     InterlockedAdd(_hashGridTracker[cellHash], 1, previousCount);
     if (previousCount >= maximumParticlesPerCell)
     {
@@ -139,13 +133,13 @@ void GetNearbyKeys(int3 originIndex, float3 position, out int nearbyKeys[8])
     }
 }
 
-[numthreads(100,1,1)]
+[numthreads(128,1,1)]
 void BuildNeighbourList(uint3 id : SV_DispatchThreadID)
 {
     _neighbourTracker[id.x] = 0;
-    const int3 cell = GetCell(_particles[id.x].Position);
+    const int3 cell = GetCell(_particles[id.x]);
     int cells[8];
-    GetNearbyKeys(cell, _particles[id.x].Position, cells);
+    GetNearbyKeys(cell, _particles[id.x], cells);
 
     for (uint j = 0; j < 8; j++)
     {
@@ -155,7 +149,7 @@ void BuildNeighbourList(uint3 id : SV_DispatchThreadID)
         {
             const uint potentialNeighbour = _hashGrid[cells[j] * maximumParticlesPerCell + index];
             if (potentialNeighbour == id.x) continue;
-            const float3 v = _particles[potentialNeighbour].Position - _particles[id.x].Position;
+            const float3 v = _particles[potentialNeighbour] - _particles[id.x];
             if (dot(v, v) < radius2) // Use squared length (= dot) instead of length for performance.
             {
                 _neighbourList[id.x * maximumParticlesPerCell * 8 + _neighbourTracker[id.x]++] = potentialNeighbour;
@@ -173,22 +167,21 @@ float StdKernel(float distanceSquared)
 }
 
 
-[numthreads(100,1,1)]
+[numthreads(128,1,1)]
 void ComputeDensityPressure(uint3 id : SV_DispatchThreadID)
 {
     // Doyub Kim 121, 122, 123
     // 5. Compute densities
-    float3 origin = _particles[id.x].Position;
+    float3 origin = _particles[id.x];
     float sum = 0.f;
     for (int j = 0; j < _neighbourTracker[id.x]; j++)
     {
         int neighbourIndex = _neighbourList[id.x * maximumParticlesPerCell * 8 + j];
-        const float3 diff = origin - _particles[neighbourIndex].Position;
-        float distanceSquared = dot(diff, diff);
-        sum += StdKernel(distanceSquared);
+        const float3 distance = origin - _particles[neighbourIndex];
+        sum += mass * StdKernel(distance);
     }
 
-    _densities[id.x] = sum * mass + 0.000001f;
+    _densities[id.x] = sum + 0.000001f;
 
     // 6. Compute pressure based on density
     _pressures[id.x] = gasConstant * ( _densities[id.x] - restDensity ); // as described in Müller et al Equation 12
@@ -215,73 +208,91 @@ float3 SpikyKernelGradient(float distance, float3 directionFromCenter)
     return SpikyKernelFirstDerivative(distance) * directionFromCenter;
 }
 
-[numthreads(100,1,1)]
+[numthreads(128,1,1)]
 void ComputeForces(uint3 id : SV_DispatchThreadID)
 {
     _forces[id.x] = float3(0, 0, 0);
+    float3 viscosityForce = float3(0, 0, 0);
+    float3 surfaceTensionForce = float3(0, 0, 0);
+    float3 CS_D1 = float3(0, 0, 0);
+    float CS_D2 = 0;
+    float K = 0;
+    float surfaceTensionCo = (72 / 300);
     const float particleDensity2 = _densities[id.x] * _densities[id.x];
     for (int j = 0; j < _neighbourTracker[id.x]; j++)
     {
         const int neighbourIndex = _neighbourList[id.x * maximumParticlesPerCell * 8 + j];
-        const float distance = length( _particles[id.x].Position - _particles[neighbourIndex].Position );
+        const float distance = length( _particles[id.x] - _particles[neighbourIndex] );
         if (distance > 0.0f)
         {
-            const float3 direction = ( _particles[id.x].Position - _particles[neighbourIndex].Position ) / distance;
+            const float3 direction = ( _particles[id.x] - _particles[neighbourIndex] );
+            float3 normalizedDirection = normalize(direction);
             // 7. Compute pressure gradient force (Doyub Kim page 136)
-            _forces[id.x] -= mass2 * ( _pressures[id.x] / particleDensity2 + _pressures[neighbourIndex] / ( _densities[neighbourIndex] * _densities[neighbourIndex] ) ) * SpikyKernelGradient(distance, direction);   // Kim
+            _forces[id.x] -= mass2 * ( _pressures[id.x] / particleDensity2 + _pressures[neighbourIndex] / ( _densities[neighbourIndex] * _densities[neighbourIndex] ) ) * SpikyKernelGradient(distance, normalizedDirection);   // Kim
             // 8. Compute the viscosity force
-            _forces[id.x] += viscosityCoefficient * mass2 * ( _velocities[neighbourIndex] - _velocities[id.x] ) / _densities[neighbourIndex] * SpikyKernelSecondDerivative(distance);    // Kim
+            viscosityForce += mass2 * ( _velocities[neighbourIndex] - _velocities[id.x] ) / _densities[neighbourIndex] * SpikyKernelSecondDerivative(distance);    // Kim
+            
+            CS_D1 = mass * (1 / _densities[neighbourIndex]) * SpikyKernelGradient(distance, normalizedDirection);
+            CS_D2 = mass * (1 / _densities[neighbourIndex]) * SpikyKernelSecondDerivative(distance);
+            float CS_D1Length = length(CS_D1);
+            K = -CS_D2 / CS_D1Length;
+            if (CS_D1Length > 0.2)
+                surfaceTensionForce += surfaceTensionCo * K * CS_D1;
         }
     }
+
+    viscosityForce *= viscosityCoefficient;
+    _forces[id.x] += viscosityForce;
+    _forces[id.x] += surfaceTensionForce;
     
     // Gravity
     _forces[id.x] += g;
 }
 
-[numthreads(100,1,1)]
+[numthreads(128,1,1)]
 void Integrate(uint3 id : SV_DispatchThreadID)
 {
-    Particle particle = _particles[id.x];
+    float3 particle = _particles[id.x];
     // forward Euler integration
     _velocities[id.x] += dt * _forces[id.x] / mass;
-    particle.Position += dt * _velocities[id.x];
+    particle += dt * _velocities[id.x];
     _particles[id.x] = particle;
             
     particle = _particles[id.x];
     float3 velocity = _velocities[id.x];
             
     // enforce boundary conditions
-    if (_particles[id.x].Position.x - epsilon < 0.0f)
+    if (_particles[id.x].x - epsilon < 0.0f)
     {
         velocity.x *= damping;
-        particle.Position.x = epsilon;
+        particle.x = epsilon;
     }
-    else if(_particles[id.x].Position.x + epsilon > Dimensions - 1.f) 
+    else if(_particles[id.x].x + epsilon > Dimensions - 1.f) 
     {
         velocity.x *= damping;
-        particle.Position.x = Dimensions - 1 - epsilon;
+        particle.x = Dimensions - 1 - epsilon;
     }
             
-    if (_particles[id.x].Position.y - epsilon < 0.0f)
+    if (_particles[id.x].y - epsilon < 0.0f)
     {
         velocity.y *= damping;
-        particle.Position.y = epsilon;
+        particle.y = epsilon;
     }
-    else if(_particles[id.x].Position.y + epsilon > Dimensions - 1.f) 
+    else if(_particles[id.x].y + epsilon > Dimensions - 1.f) 
     {
         velocity.y *= damping;
-        particle.Position.y = Dimensions - 1 - epsilon;
+        particle.y = Dimensions - 1 - epsilon;
     }
             
-    if (_particles[id.x].Position.z - epsilon < 0.0f)
+    if (_particles[id.x].z - epsilon < 0.0f)
     {
         velocity.z *= damping;
-        particle.Position.z = epsilon;
+        particle.z = epsilon;
     }
-    else if(_particles[id.x].Position.z + epsilon > Dimensions - 1.f) 
+    else if(_particles[id.x].z + epsilon > Dimensions - 1.f) 
     {
         velocity.z *= damping;
-        particle.Position.z = Dimensions - 1 - epsilon;
+        particle.z = Dimensions - 1 - epsilon;
     }
             
     _velocities[id.x] = velocity;
