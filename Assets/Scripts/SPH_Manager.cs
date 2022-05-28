@@ -179,14 +179,13 @@ public class SPH_Manager : MonoBehaviour
         for (int i = 0; i < numberOfParticles; i++)
         {
             // forward Euler integration
-            if (densities[i] == 0) continue;
+            
             Vector3 acceleration = forces[i] / densities[i];
-            velocities[i] += acceleration *0.016f; 
-
+            velocities[i] += acceleration *0.01f;
             //velocities[i] += Time.deltaTime * forces[i] / mass;
 
             Vector3 newPos = _particles[i].transform.position;
-            newPos += 0.016f * velocities[i];
+            newPos += 0.01f * velocities[i];
 
             // enforce boundary conditions
             if (newPos.x - float.Epsilon < 0.0f)
@@ -300,6 +299,8 @@ public class SPH_Manager : MonoBehaviour
 
                 sum += k1 * Mathf.Pow((radius2 - distanceSqr),3); 
             }
+
+            sum += k1 * Mathf.Pow(radius, 6);
 
             densities[i] = sum;
 

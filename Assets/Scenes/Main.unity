@@ -139,7 +139,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &181817654
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -152,7 +152,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7363e9f3dbaf73547975ee58203783b0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  radius: 1.5
+  radius: 1.1
   particlePrefab: {fileID: 8920497686374495318, guid: d46bb1525bc5b0a4c8520e0d0a807383, type: 3}
   particleRadius: 1
   mass: 1
@@ -161,8 +161,8 @@ MonoBehaviour:
   gasConstant: 20
   restDensity: 1
   damping: -0.5
-  numberOfParticles: 500
-  dimensions: 10
+  numberOfParticles: 100
+  dimensions: 15
   maximumParticlesPerCell: 500
   _neighbourTracker: 
   averageFPS: 0
@@ -450,7 +450,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &2061227349
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -463,7 +463,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 56ad99256a95b3f4c9fc6900de654099, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  radius: 1.5
+  radius: 1.1
   particleMesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
   material: {fileID: 2100000, guid: a82148cccbb6e2a4f9205fcfd499a383, type: 2}
   mass: 1
@@ -475,8 +475,8 @@ MonoBehaviour:
   - -9.81
   - 0
   damping: -0.1
-  numberOfParticles: 10000
-  dimensions: 20
+  numberOfParticles: 100000
+  dimensions: 50
   maximumParticlesPerCell: 500
   averageFPS: 0
   _hashGridTracker: 
