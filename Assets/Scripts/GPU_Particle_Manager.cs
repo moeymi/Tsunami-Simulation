@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using UnityEditor;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
@@ -26,10 +27,21 @@ public class GPU_Particle_Manager : MonoBehaviour
     public int dimensions = 100;
     public int maximumParticlesPerCell = 500;
 
+    public Color baseColor = Color.blue;
+    public Color surfaceColor = Color.white;
+
+    [Range(0.1f, 4f)]
+    public float colorModifier = 0.8f;
+
+    [Range(0.001f, 0.4f)]
+    public float noiseRate = 0.005f;
+
+
     [Header("Debug information")]
     public float averageFPS;
 
     private Vector3[] _particles;
+    private Color[] _colors;
     // Too big for feasible serialisation (crash on expand).
     private int[] _neighbourList; // Stores all neighbours of a particle aligned at 'particleIndex * maximumParticlesPerCell * 8'
     private uint[] _hashGrid;
@@ -53,7 +65,9 @@ public class GPU_Particle_Manager : MonoBehaviour
     private ComputeBuffer _pressuresBuffer;
     private ComputeBuffer _velocitiesBuffer;
     private ComputeBuffer _forcesBuffer;
+    private ComputeBuffer _colorsBuffer;
     private static readonly int ParticlesBufferProperty = Shader.PropertyToID("_particlesBuffer");
+    private static readonly int ColorsBufferProperty = Shader.PropertyToID("_colorsBuffer");
 
     public ComputeShader computeShader;
     private int clearHashGridKernel;
@@ -94,6 +108,7 @@ public class GPU_Particle_Manager : MonoBehaviour
     private void RespawnParticles()
     {
         _particles = new Vector3[numberOfParticles];
+        _colors = new Color[numberOfParticles];
         _densities = new float[numberOfParticles];
         _pressures = new float[numberOfParticles];
         _velocities = new Vector3[numberOfParticles];
@@ -160,6 +175,10 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader.SetFloats("k1", k1);
         computeShader.SetFloats("k2", k2);
         computeShader.SetFloats("k3", k3);
+        computeShader.SetVector("baseColor", baseColor);
+        computeShader.SetVector("surfaceColor", surfaceColor);
+        computeShader.SetFloat("colorModifier", colorModifier);
+        computeShader.SetFloat("noiseRate", noiseRate);
     }
 
     void InitComputeBuffers()
@@ -176,6 +195,9 @@ public class GPU_Particle_Manager : MonoBehaviour
 
         _particlesBuffer = new ComputeBuffer(numberOfParticles, sizeof(float) * 3);
         _particlesBuffer.SetData(_particles);
+
+        _colorsBuffer = new ComputeBuffer(numberOfParticles, sizeof(float) * 4);
+        _colorsBuffer.SetData(_colors);
 
         _neighbourList = new int[numberOfParticles * maximumParticlesPerCell * 8];
 
@@ -229,6 +251,8 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader.SetBuffer(computeForcesKernel, "_forces", _forcesBuffer);
 
         computeShader.SetBuffer(integrateKernel, "_particles", _particlesBuffer);
+        computeShader.SetBuffer(integrateKernel, "_densities", _densitiesBuffer);
+        computeShader.SetBuffer(integrateKernel, "_colors", _colorsBuffer);
         computeShader.SetBuffer(integrateKernel, "_forces", _forcesBuffer);
         computeShader.SetBuffer(integrateKernel, "_velocities", _velocitiesBuffer);
         computeShader.SetBuffer(integrateKernel, "_densities", _densitiesBuffer);
@@ -238,15 +262,15 @@ public class GPU_Particle_Manager : MonoBehaviour
 
     void Update()
     {
-        computeShader.SetFloat("dt", Mathf.Min(Time.deltaTime , 0.008f ));
+        computeShader.SetFloat("dt", Time.deltaTime);
         computeShader.Dispatch(clearHashGridKernel, dimensions * dimensions * dimensions / 100, 1, 1);
         computeShader.Dispatch(recalculateHashGridKernel, numberOfParticles / 100, 1, 1);
         computeShader.Dispatch(buildNeighbourListKernel, numberOfParticles / 100, 1, 1);
         computeShader.Dispatch(computeDensityPressureKernel, numberOfParticles / 100, 1, 1);
         computeShader.Dispatch(computeForcesKernel, numberOfParticles / 100, 1, 1);
         computeShader.Dispatch(integrateKernel, numberOfParticles / 100, 1, 1);
-
         material.SetBuffer(ParticlesBufferProperty, _particlesBuffer);
+        material.SetBuffer(ColorsBufferProperty, _colorsBuffer);
         Graphics.DrawMeshInstancedIndirect(particleMesh, 0, material, new Bounds(Vector3.zero, new Vector3(100.0f, 100.0f, 100.0f)), _argsBuffer, castShadows: 0);
 
         averageFPS = 1 / Time.deltaTime;
@@ -260,6 +284,7 @@ public class GPU_Particle_Manager : MonoBehaviour
     private void ReleaseBuffers()
     {
         _particlesBuffer.Dispose();
+        _colorsBuffer.Dispose();
         _argsBuffer.Dispose();
         _neighbourListBuffer.Dispose();
         _neighbourTrackerBuffer.Dispose();
@@ -275,5 +300,13 @@ public class GPU_Particle_Manager : MonoBehaviour
     {
         Gizmos.color = Color.red;
         Gizmos.DrawWireCube(new Vector3(dimensions / 2, dimensions / 2, dimensions / 2), Vector3.one * dimensions);
+    }
+
+    private void OnValidate()
+    {
+        computeShader?.SetVector("baseColor", baseColor);
+        computeShader?.SetVector("surfaceColor", surfaceColor);
+        computeShader?.SetFloat("colorModifier", colorModifier);
+        computeShader?.SetFloat("noiseRate", noiseRate);
     }
 }

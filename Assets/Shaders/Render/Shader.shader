@@ -22,6 +22,8 @@ Shader "Example/URPUnlitShaderNormal"
             #pragma fragment frag
             #pragma multi_compile_instancing
 
+            #define HASHSCALE1 0.3183099
+
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"            
 
             struct Attributes
@@ -30,14 +32,17 @@ Shader "Example/URPUnlitShaderNormal"
                 half3 normal        : NORMAL;
                 uint instanceID : SV_InstanceID;
             };
+            
 
             float _Size;
             half4 _BaseColor;
             StructuredBuffer<float3> _particlesBuffer;
+            StructuredBuffer<float4> _colorsBuffer;
             struct Varyings
             {
                 float4 position : SV_POSITION;
                 half3 normal : TEXCOORD0;
+                uint instanceID : SV_InstanceID;
             };
 
             Varyings vert(Attributes IN)
@@ -55,12 +60,17 @@ Shader "Example/URPUnlitShaderNormal"
                 Varyings OUT;
                 OUT.position = finalPos;
                 OUT.normal = IN.normal;
+                OUT.instanceID = IN.instanceID;
                 return OUT;
             }
 
+
             half4 frag(Varyings IN) : SV_Target
             {
-                return _BaseColor;
+                float4 dcolor = _colorsBuffer[IN.instanceID];
+                half4 color = half4(1, 0, 1, 1);
+                color.rgb = dcolor.xyz;
+                return color;
             }
             ENDHLSL
         }

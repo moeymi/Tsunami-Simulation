@@ -474,10 +474,13 @@ MonoBehaviour:
   - 0
   - -9.81
   - 0
-  damping: -0.1
-  numberOfParticles: 10000
-  dimensions: 20
+  damping: -0.7
+  numberOfParticles: 100000
+  dimensions: 40
   maximumParticlesPerCell: 500
+  baseColor: {r: 0, g: 0.2119317, b: 1, a: 1}
+  surfaceColor: {r: 0.63584906, g: 0.8250483, b: 1, a: 1}
+  colorModifier: 0.5
   averageFPS: 0
   _hashGridTracker: 
   computeShader: {fileID: 7200000, guid: 4130f60e91af7724297d279f8f58fa69, type: 3}

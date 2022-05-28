@@ -4,6 +4,7 @@
 #pragma kernel ComputeDensityPressure
 #pragma kernel ComputeForces
 #pragma kernel Integrate
+#include "UnityCG.cginc"
 
 float CellSize;
 int Dimensions;
@@ -19,6 +20,7 @@ int Hash(int3 cell)
 }
 
 RWStructuredBuffer<float3> _particles;
+RWStructuredBuffer<float4> _colors;
 RWStructuredBuffer<int> _neighbourList;
 RWStructuredBuffer<int> _neighbourTracker;
 RWStructuredBuffer<uint> _hashGrid;
@@ -47,6 +49,11 @@ float pi;
 float k1;
 float k2;
 float k3;
+float colorModifier;
+float noiseRate;
+
+float4 surfaceColor;
+float4 baseColor;
 
 // Fake clear actually, only writes 0 to the hashGridTracker.
 [numthreads(100,1,1)]
@@ -200,7 +207,6 @@ void ComputeDensityPressure(uint3 id : SV_DispatchThreadID)
     sum += k1 * pow(radius, 6);
 
     _densities[id.x] = sum;
-
     // Compute pressure based on density
     _pressures[id.x] = gasConstant * (_densities[id.x] - restDensity);
 }
@@ -232,6 +238,13 @@ void ComputeForces(uint3 id : SV_DispatchThreadID)
     _forces[id.x] += g;
 }
 
+
+float Hash_From2D(float Vec, float time)
+{
+    float f = time + Vec * 37.70;
+    return frac(sin(f) * 100.347);
+}
+
 [numthreads(100,1,1)]
 void Integrate(uint3 id : SV_DispatchThreadID)
 {
@@ -243,6 +256,7 @@ void Integrate(uint3 id : SV_DispatchThreadID)
 
     float3 newPos = _particles[id.x];
     newPos += dt * _velocities[id.x];
+
 
     if (newPos.x - epsilon < 0.0f)
     {
@@ -276,6 +290,15 @@ void Integrate(uint3 id : SV_DispatchThreadID)
         _velocities[id.x].z *= damping;
         newPos.z = Dimensions - 1 - epsilon;
     }
+    float colorEstimate = pow(abs(newPos.y / Dimensions), colorModifier);
+    float perlinNoise = Hash_From2D(newPos, _Time);
+    float customNoise = (abs(perlinNoise)+1) * noiseRate;
+    float4 newColor = lerp(baseColor, surfaceColor, colorEstimate + customNoise);
+    float4 oldColor = _colors[id.x];
+    if (oldColor.x != 0)
+        _colors[id.x] = lerp(oldColor, newColor, 0.2f);
+    else
+        _colors[id.x] = newColor;
     _particles[id.x] = newPos;
 }
 
