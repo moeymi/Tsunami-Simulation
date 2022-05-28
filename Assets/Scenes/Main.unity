@@ -160,8 +160,8 @@ MonoBehaviour:
   g: {x: 0, y: -9.81, z: 0}
   gasConstant: 20
   restDensity: 1
-  damping: -0.5
-  numberOfParticles: 100
+  damping: -0.1
+  numberOfParticles: 1000
   dimensions: 15
   maximumParticlesPerCell: 500
   _neighbourTracker: 

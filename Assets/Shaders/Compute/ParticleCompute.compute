@@ -197,6 +197,8 @@ void ComputeDensityPressure(uint3 id : SV_DispatchThreadID)
         sum += k1 * pow(radius2 - distanceSqr , 3);
     }
 
+    sum += k1 * pow(radius, 6);
+
     _densities[id.x] = sum;
 
     // Compute pressure based on density

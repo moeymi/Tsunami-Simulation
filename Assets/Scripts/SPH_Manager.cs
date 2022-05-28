@@ -92,7 +92,7 @@ public class SPH_Manager : MonoBehaviour
                     for (int z = 0; z < particlesPerDimension; z++)
                     {
                         //Vector3 startPos = new Vector3(dimensions - 1, dimensions - 1, dimensions - 1) - new Vector3(x / 2f, y / 2f, z / 2f) - new Vector3(Random.Range(0f, 1f), Random.Range(0f, 1f), Random.Range(0f, 1f));
-                        Vector3 startPos = new Vector3(dimensions  - x, dimensions  - y, dimensions  - z); 
+                        Vector3 startPos = new Vector3(dimensions -1 - x, dimensions -1 - y, dimensions -1 - z); 
                         _particles[counter] = Instantiate(particlePrefab);
                         _particles[counter].transform.parent = parentParticle.transform;
                         _particles[counter].transform.position = startPos;
