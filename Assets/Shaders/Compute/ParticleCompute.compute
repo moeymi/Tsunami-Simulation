@@ -44,6 +44,9 @@ float dt;
 float3 g;
 float epsilon;
 float pi;
+float k1;
+float k2;
+float k3;
 
 // Fake clear actually, only writes 0 to the hashGridTracker.
 [numthreads(100,1,1)]
@@ -191,11 +194,8 @@ void ComputeDensityPressure(uint3 id : SV_DispatchThreadID)
         int neighbourIndex = _neighbourList[id.x * maximumParticlesPerCell * 8 + j];
         float dist = length(origin - _particles[neighbourIndex]);
         float distanceSqr = dist * dist;
-        sum += mass * Poly6(radius) * pow(distanceSqr - radius2, 2);
+        sum += k1 * pow(radius2 - distanceSqr , 3);
     }
-
-    // self density
-    sum += mass * Poly6(radius) * pow(radius, 6);
 
     _densities[id.x] = sum;
 
@@ -217,13 +217,12 @@ void ComputeForces(uint3 id : SV_DispatchThreadID)
             float3 normalizedDirection = normalize(direction);
 
             //Pressure 
-            float3 pressureForce = (-direction * mass) * (_pressures[id.x] + _pressures[neighbourIndex]) / (2 * _densities[neighbourIndex]);
-            pressureForce *= GradientSpikey(distance, radius);
+            float3 pressureForce = k2 *(-direction) * (_pressures[id.x] + _pressures[neighbourIndex]) / (2 * _densities[neighbourIndex]) * pow((radius - distance), 2);
             _forces[id.x] += pressureForce;
 
             //Viscosity 
             float3 velocityDiff = _velocities[neighbourIndex] - _velocities[id.x];
-            float3 viscoForce = viscosityCoefficient * mass * (velocityDiff / _densities[neighbourIndex]) * ViscosityLaplacian(distance, radius);
+            float3 viscoForce = k3 * (velocityDiff / _densities[neighbourIndex]) * (radius - distance);
             _forces[id.x] += viscoForce;
         }
     }

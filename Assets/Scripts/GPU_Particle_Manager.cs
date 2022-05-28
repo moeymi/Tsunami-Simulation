@@ -39,6 +39,10 @@ public class GPU_Particle_Manager : MonoBehaviour
     private Vector3[] _velocities;
     private Vector3[] _forces;
 
+    float k1;
+    float k2;
+    float k3;
+
     private ComputeBuffer _particlesBuffer;
     private ComputeBuffer _argsBuffer;
     private ComputeBuffer _neighbourListBuffer;
@@ -75,6 +79,10 @@ public class GPU_Particle_Manager : MonoBehaviour
         radius5 = radius4 * radius;
         mass2 = mass * mass;
 
+        k1 = (315 * mass) / (64 * Mathf.PI * Mathf.Pow(radius, 9));
+        k2 = -(45 * mass) / (Mathf.PI * Mathf.Pow(radius, 6));
+        k3 = (45 * viscosityCoefficient * mass) / (Mathf.PI * Mathf.Pow(radius, 6));
+
         RespawnParticles();
         FindKernels();
         InitComputeShader();
@@ -100,7 +108,7 @@ public class GPU_Particle_Manager : MonoBehaviour
                 for (int y = 0; y < particlesPerDimension; y++)
                     for (int z = 0; z < particlesPerDimension; z++)
                     {
-                        Vector3 startPos = new Vector3(dimensions - 1, dimensions - 1, dimensions - 1) - new Vector3(x / 2f, y / 2f, z / 2f) - new Vector3(Random.Range(0f, 0.01f), Random.Range(0f, 0.01f), Random.Range(0f, 0.01f));
+                        Vector3 startPos = new Vector3 (dimensions - x , dimensions - y , dimensions - z) / radius;
                         _particles[counter] = new Vector3
                         (
                             startPos.x,
@@ -149,6 +157,9 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader.SetFloats("g", g);
         computeShader.SetFloats("epsilon", Mathf.Epsilon);
         computeShader.SetFloats("pi", Mathf.PI);
+        computeShader.SetFloats("k1", k1);
+        computeShader.SetFloats("k2", k2);
+        computeShader.SetFloats("k3", k3);
     }
 
     void InitComputeBuffers()
@@ -227,7 +238,7 @@ public class GPU_Particle_Manager : MonoBehaviour
 
     void Update()
     {
-        computeShader.SetFloat("dt", Time.deltaTime);
+        computeShader.SetFloat("dt", Mathf.Min(Time.deltaTime , 0.008f ));
         computeShader.Dispatch(clearHashGridKernel, dimensions * dimensions * dimensions / 100, 1, 1);
         computeShader.Dispatch(recalculateHashGridKernel, numberOfParticles / 100, 1, 1);
         computeShader.Dispatch(buildNeighbourListKernel, numberOfParticles / 100, 1, 1);
