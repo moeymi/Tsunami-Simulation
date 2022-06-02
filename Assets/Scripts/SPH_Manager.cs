@@ -1,9 +1,45 @@
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
-using Random = UnityEngine.Random;
+
+
+class Triangle
+{
+    public Vector3 p0, p1, p2;
+    public Vector3 normal;
+    public float triArea = -1;
+    public bool PointInTriangle(Vector3 p)
+    {
+        Vector3 d1;
+        Vector3 d2;
+        if (triArea < 0)
+        {
+            d1 = p2 - p0;
+            d2 = p2 - p1;
+            triArea = Vector3.Cross(d1, d2).magnitude / 2;
+        }
+
+        float sumArea = 0;
+        d1 = p - p0;
+        d2 = p - p1;
+        sumArea += Vector3.Cross(d1, d2).magnitude / 2;
+
+        d1 = p - p1;
+        d2 = p - p2;
+        sumArea += Vector3.Cross(d1, d2).magnitude / 2;
+
+        d1 = p - p0;
+        d2 = p - p2;
+        sumArea += Vector3.Cross(d1, d2).magnitude / 2;
+
+        if(Mathf.Abs(sumArea-triArea) < 0.2)
+        {
+            return true;
+        }
+        return false;
+    }
+}
+
 
 public class SPH_Manager : MonoBehaviour
 {
@@ -31,13 +67,16 @@ public class SPH_Manager : MonoBehaviour
     [Tooltip("Tracks how many neighbours each particleIndex has in " + nameof(_neighbourList))]
     [SerializeField]
     private int[] _neighbourTracker;
+    private int[] _neighbourCollisionTracker;
 
     public float averageFPS;
     #endregion
 
     private GameObject[] _particles;
-    private int[] _neighbourList; // Stores all neighbours of a particle aligned at 'particleIndex * maximumParticlesPerCell * 8'
-    private readonly Dictionary<int, List<int>> _hashGrid = new Dictionary<int, List<int>>();  // Hash of cell to particle indices.
+    private int[] _neighbourList;
+    private Triangle[] _neighbourCollisionList;
+    private readonly Dictionary<int, List<int>> _hashGrid = new Dictionary<int, List<int>>();
+    private readonly Dictionary<int, HashSet<Triangle>> _collisionHashGrid = new Dictionary<int, HashSet<Triangle>>();
 
     private float radius2;
     private float radius3;
@@ -55,6 +94,9 @@ public class SPH_Manager : MonoBehaviour
 
     float minVal = float.MaxValue;
     float maxVal = float.MinValue;
+
+    [SerializeField]
+    private MeshFilter[] renderers;
 
     private void Awake()
     {
@@ -114,8 +156,11 @@ public class SPH_Manager : MonoBehaviour
     private void InitNeighbourHashing()
     {
         _hashGrid.Clear();  // Only needed when resetting the simulation via testBattery approach.
+        _collisionHashGrid.Clear();
         _neighbourList = new int[numberOfParticles * maximumParticlesPerCell * 8];   // 8 because we consider 8 cells
+        _neighbourCollisionList = new Triangle[numberOfParticles * maximumParticlesPerCell * 8];   // 8 because we consider 8 cellsc
         _neighbourTracker = new int[numberOfParticles];
+        _neighbourCollisionTracker = new int[numberOfParticles];
         HashGrid.CellSize = radius * 2; // Setting cell-size h to particle diameter.
         HashGrid.Dimensions = dimensions; 
         for (int i = 0; i < dimensions; i++)
@@ -123,16 +168,28 @@ public class SPH_Manager : MonoBehaviour
                 for (int k = 0; k < dimensions; k++)
                 {
                     _hashGrid.Add(HashGrid.Hash(new Vector3Int(i, j, k)), new List<int>());
+                    _collisionHashGrid.Add(HashGrid.Hash(new Vector3Int(i, j, k)), new HashSet<Triangle>());
                 }
     }
 
     #endregion
+
+
+    // for calculations
+    Vector3[] vertices;
+    int[] triangles;
+    Vector3[] normals;
+    Matrix4x4 localToWorld;
 
     void Update()
     {
         // Calculate hash of all particles and build neighboring list.
         // 1. Clear HashGrid
         foreach (var cell in _hashGrid)
+        {
+            cell.Value.Clear();
+        }
+        foreach (var cell in _collisionHashGrid)
         {
             cell.Value.Clear();
         }
@@ -143,25 +200,104 @@ public class SPH_Manager : MonoBehaviour
             if (_hashGrid[hash].Count == maximumParticlesPerCell) continue;   // Prevent potential UB in neighbourList if more than maxParticlesPerCell are in a cell.
             _hashGrid[hash].Add(i);
         }
+        // 2. Recalculate hashes of each mesh.
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            vertices = renderers[i].mesh.vertices;
+            normals = renderers[i].mesh.normals;
+            triangles = renderers[i].mesh.triangles;
+            localToWorld = renderers[i].transform.localToWorldMatrix;
+            for (int j = 0; j < triangles.Length; j+=3)
+            {
+                Vector3 facePos = (vertices[triangles[j]] + vertices[triangles[j + 1]] + vertices[triangles[j + 2]]) / 3;
+                Vector3 p1 = localToWorld.MultiplyPoint3x4(vertices[triangles[j]]);
+                Vector3 p2 = localToWorld.MultiplyPoint3x4(vertices[triangles[j + 1]]);
+                Vector3 p3 = localToWorld.MultiplyPoint3x4(vertices[triangles[j + 2]]);
+                Vector3 p4 = (p1 + p2 + p3) / 3f;
+                float distance1 = Vector3.Distance(p1, p2);
+                float distance2 = Vector3.Distance(p2, p3);
+                float distance3 = Vector3.Distance(p1, p3);
+                Triangle face = new Triangle();
+                face.p0 = p1;
+                face.p1 = p2;
+                face.p2 = p3;
+                face.normal = renderers[i].transform.rotation * normals[triangles[j]];
+                if (distance1 > distance2 && distance1 > distance3)
+                {
+                    int t1 = (int) (distance2 / HashGrid.CellSize);
+                    int t2 = (int)(distance3 / HashGrid.CellSize);
+                    for (int h = 0; h<= t1; h++)
+                    {
+                        for (int l = 0; l <= t2; l++)
+                        {
+                            Vector3 potentialCell = p3 + ((p2 - p3).normalized * HashGrid.CellSize * h) + ((p1 - p3).normalized * HashGrid.CellSize * l);
+                            if (face.PointInTriangle(potentialCell))
+                                _collisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
+                        }
+                    }
+                }
+                else if (distance2 > distance1 && distance2 > distance3)
+                {
+                    int t1 = Mathf.CeilToInt(distance1 / HashGrid.CellSize);
+                    int t2 = Mathf.CeilToInt(distance3 / HashGrid.CellSize);
+                    for (int h = 0; h <= t1; h++)
+                    {
+                        for (int l = 0; l <= t2; l++)
+                        {
+                            Vector3 potentialCell = p1 + ((p3 - p1).normalized * HashGrid.CellSize * l) + ((p2 - p1).normalized * HashGrid.CellSize * h);
+                            if (face.PointInTriangle(potentialCell))
+                                _collisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
+                        }
+                    }
+                }
+                else
+                {
+                    int t1 = Mathf.CeilToInt(distance1 / HashGrid.CellSize);
+                    int t2 = Mathf.CeilToInt(distance2 / HashGrid.CellSize);
+                    int h = 0, l = 0;
+                    for ( h = 0; h <= t1;h++)
+                    {
+                        for (l = 0;l <= t2; l++)
+                        {
+                            Vector3 potentialCell = p2 + ((p3 - p2).normalized * HashGrid.CellSize * l) + ((p1 - p2).normalized * HashGrid.CellSize * h);
+                            if(face.PointInTriangle(potentialCell))
+                                _collisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
+
+                        }
+                    }
+                }
+            }
+        }
         // 3. For each particle go through all their 8 neighbouring cells.
         //    Check each particle in those neighbouring cells for interference radius r and store the interfering ones inside the particles neighbour list.
         for (int particleIndex = 0; particleIndex < _particles.Length; particleIndex++)
         {
             _neighbourTracker[particleIndex] = 0;
+            _neighbourCollisionTracker[particleIndex] = 0;
             var cell = HashGrid.GetCell(_particles[particleIndex].transform.position);
             var cells = GetNearbyKeys(cell, _particles[particleIndex].transform.position);
 
             for (int j = 0; j < cells.Length; j++)
             {
-                if (!_hashGrid.ContainsKey(cells[j])) continue;
-                var neighbourCell = _hashGrid[cells[j]];
-                foreach (var potentialNeighbour in neighbourCell)
+                if (_hashGrid.ContainsKey(cells[j]))
                 {
-                    if (potentialNeighbour == particleIndex) continue;
-
-                    if ((_particles[potentialNeighbour].transform.position - _particles[particleIndex].transform.position).sqrMagnitude < radius2)
+                    var neighbourCell = _hashGrid[cells[j]];
+                    foreach (var potentialNeighbour in neighbourCell)
                     {
-                        _neighbourList[particleIndex * maximumParticlesPerCell * 8 + _neighbourTracker[particleIndex]++] = potentialNeighbour;
+                        if (potentialNeighbour == particleIndex) continue;
+
+                        if ((_particles[potentialNeighbour].transform.position - _particles[particleIndex].transform.position).sqrMagnitude < radius2)
+                        {
+                            _neighbourList[particleIndex * maximumParticlesPerCell * 8 + _neighbourTracker[particleIndex]++] = potentialNeighbour;
+                        }
+                    }
+                }
+                if (_collisionHashGrid.ContainsKey(cells[j]))
+                {
+                    var neighbourCell = _collisionHashGrid[cells[j]];
+                    foreach (var potentialNeighbour in neighbourCell)
+                    {
+                        _neighbourCollisionList[particleIndex * maximumParticlesPerCell * 8 + _neighbourCollisionTracker[particleIndex]++] = potentialNeighbour;
                     }
                 }
             }
@@ -174,6 +310,25 @@ public class SPH_Manager : MonoBehaviour
         averageFPS = 1 / Time.deltaTime;
     }
 
+    private void MakeCollision(int i)
+    {
+        Vector3 newPos = _particles[i].transform.position;
+        Vector3 finalNormal = Vector3.zero;
+        for (int j = 0; j < _neighbourCollisionTracker[i]; j++)
+        {
+            Triangle face = _neighbourCollisionList[i * maximumParticlesPerCell * 8 + j];
+            bool d = face.PointInTriangle(newPos + (velocities[i].normalized * (radius/2)));
+            if (!d)
+                continue;
+            finalNormal += face.normal;
+            Debug.Log(face.p1);
+            Debug.Log(face.p2);
+            Debug.Log(face.p0);
+        }
+        if(!finalNormal.Equals(Vector3.zero))
+            velocities[i] = Vector3.Reflect(velocities[i], finalNormal.normalized);
+    }
+
     private void Integrate()
     {
         for (int i = 0; i < numberOfParticles; i++)
@@ -181,10 +336,11 @@ public class SPH_Manager : MonoBehaviour
             // forward Euler integration
             
             Vector3 acceleration = forces[i] / densities[i];
-            velocities[i] += acceleration *0.01f;
+            velocities[i] += acceleration * 0.01f;
+            Vector3 newPos = _particles[i].transform.position;
+            MakeCollision(i);
             //velocities[i] += Time.deltaTime * forces[i] / mass;
 
-            Vector3 newPos = _particles[i].transform.position;
             newPos += 0.01f * velocities[i];
 
             // enforce boundary conditions
