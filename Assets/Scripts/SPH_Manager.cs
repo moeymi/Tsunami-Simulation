@@ -2,45 +2,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
-
-class Triangle
-{
-    public Vector3 p0, p1, p2;
-    public Vector3 normal;
-    public float triArea = -1;
-    public bool PointInTriangle(Vector3 p)
-    {
-        Vector3 d1;
-        Vector3 d2;
-        if (triArea < 0)
-        {
-            d1 = p2 - p0;
-            d2 = p2 - p1;
-            triArea = Vector3.Cross(d1, d2).magnitude / 2;
-        }
-
-        float sumArea = 0;
-        d1 = p - p0;
-        d2 = p - p1;
-        sumArea += Vector3.Cross(d1, d2).magnitude / 2;
-
-        d1 = p - p1;
-        d2 = p - p2;
-        sumArea += Vector3.Cross(d1, d2).magnitude / 2;
-
-        d1 = p - p0;
-        d2 = p - p2;
-        sumArea += Vector3.Cross(d1, d2).magnitude / 2;
-
-        if(Mathf.Abs(sumArea-triArea) < 0.2)
-        {
-            return true;
-        }
-        return false;
-    }
-}
-
-
 public class SPH_Manager : MonoBehaviour
 {
     #region Simulation Constants
@@ -76,7 +37,8 @@ public class SPH_Manager : MonoBehaviour
     private int[] _neighbourList;
     private Triangle[] _neighbourCollisionList;
     private readonly Dictionary<int, List<int>> _hashGrid = new Dictionary<int, List<int>>();
-    private readonly Dictionary<int, HashSet<Triangle>> _collisionHashGrid = new Dictionary<int, HashSet<Triangle>>();
+    private readonly Dictionary<int, HashSet<Triangle>> _dynamicCollisionHashGrid = new Dictionary<int, HashSet<Triangle>>();
+    private readonly Dictionary<int, HashSet<Triangle>> _staticCollisionHashGrid = new Dictionary<int, HashSet<Triangle>>();
 
     private float radius2;
     private float radius3;
@@ -92,16 +54,22 @@ public class SPH_Manager : MonoBehaviour
     float k2;
     float k3;
 
-    float minVal = float.MaxValue;
-    float maxVal = float.MinValue;
+    private MeshFilter[] staticColliders;
+    private MeshFilter[] dynamicColliders;
 
     [SerializeField]
-    private MeshFilter[] renderers;
+    private Transform staticCollidersParent;
+    [SerializeField]
+    private Transform dynamicCollidersParent;
 
     private void Awake()
     {
         RespawnParticles();
         InitNeighbourHashing();
+        staticColliders = staticCollidersParent.GetComponentsInChildren<MeshFilter>();
+        dynamicColliders = dynamicCollidersParent.GetComponentsInChildren<MeshFilter>();
+        InitColliders(dynamicColliders, false);
+        InitColliders(staticColliders, true);
         radius2 = radius * radius;
         radius3 = radius2 * radius;
         radius4 = radius3 * radius;
@@ -113,6 +81,82 @@ public class SPH_Manager : MonoBehaviour
     }
 
     #region Initialisation
+
+    private void InitColliders(MeshFilter[] colliders, bool isStatic)
+    {
+
+        // 2. Recalculate hashes of each mesh.
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            vertices = colliders[i].mesh.vertices;
+            normals = colliders[i].mesh.normals;
+            triangles = colliders[i].mesh.triangles;
+            localToWorld = colliders[i].transform.localToWorldMatrix;
+            for (int j = 0; j < triangles.Length; j += 3)
+            {
+                Vector3 facePos = (vertices[triangles[j]] + vertices[triangles[j + 1]] + vertices[triangles[j + 2]]) / 3;
+                Vector3 p1 = localToWorld.MultiplyPoint3x4(vertices[triangles[j]]);
+                Vector3 p2 = localToWorld.MultiplyPoint3x4(vertices[triangles[j + 1]]);
+                Vector3 p3 = localToWorld.MultiplyPoint3x4(vertices[triangles[j + 2]]);
+                float distance1 = Vector3.Distance(p1, p2);
+                float distance2 = Vector3.Distance(p2, p3);
+                float distance3 = Vector3.Distance(p1, p3);
+                Triangle face = new Triangle(p1, p2, p3, colliders[i].transform.rotation * normals[triangles[j]]);
+                if (distance1 > distance2 && distance1 > distance3)
+                {
+                    int t1 = (int)(distance2 / HashGrid.CellSize);
+                    int t2 = (int)(distance3 / HashGrid.CellSize);
+                    for (int h = 0; h <= t1; h++)
+                    {
+                        for (int l = 0; l <= t2; l++)
+                        {
+                            Vector3 potentialCell = p3 + ((p2 - p3).normalized * HashGrid.CellSize * h) + ((p1 - p3).normalized * HashGrid.CellSize * l);
+                            if (face.PointInTriangle(potentialCell))
+                                if(!isStatic)
+                                    _dynamicCollisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
+                                else
+                                    _staticCollisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
+                        }
+                    }
+                }
+                else if (distance2 > distance1 && distance2 > distance3)
+                {
+                    int t1 = Mathf.CeilToInt(distance1 / HashGrid.CellSize);
+                    int t2 = Mathf.CeilToInt(distance3 / HashGrid.CellSize);
+                    for (int h = 0; h <= t1; h++)
+                    {
+                        for (int l = 0; l <= t2; l++)
+                        {
+                            Vector3 potentialCell = p1 + ((p3 - p1).normalized * HashGrid.CellSize * l) + ((p2 - p1).normalized * HashGrid.CellSize * h);
+                            if (face.PointInTriangle(potentialCell))
+                                if (!isStatic)
+                                    _dynamicCollisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
+                                else
+                                    _staticCollisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
+                        }
+                    }
+                }
+                else
+                {
+                    int t1 = Mathf.CeilToInt(distance1 / HashGrid.CellSize);
+                    int t2 = Mathf.CeilToInt(distance2 / HashGrid.CellSize);
+                    int h = 0, l = 0;
+                    for (h = 0; h <= t1; h++)
+                    {
+                        for (l = 0; l <= t2; l++)
+                        {
+                            Vector3 potentialCell = p2 + ((p3 - p2).normalized * HashGrid.CellSize * l) + ((p1 - p2).normalized * HashGrid.CellSize * h);
+                            if (face.PointInTriangle(potentialCell))
+                                if (!isStatic)
+                                    _dynamicCollisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
+                                else
+                                    _staticCollisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     private void RespawnParticles()
     {
@@ -156,7 +200,8 @@ public class SPH_Manager : MonoBehaviour
     private void InitNeighbourHashing()
     {
         _hashGrid.Clear();  // Only needed when resetting the simulation via testBattery approach.
-        _collisionHashGrid.Clear();
+        _dynamicCollisionHashGrid.Clear();
+        _staticCollisionHashGrid.Clear();
         _neighbourList = new int[numberOfParticles * maximumParticlesPerCell * 8];   // 8 because we consider 8 cells
         _neighbourCollisionList = new Triangle[numberOfParticles * maximumParticlesPerCell * 8];   // 8 because we consider 8 cellsc
         _neighbourTracker = new int[numberOfParticles];
@@ -168,7 +213,8 @@ public class SPH_Manager : MonoBehaviour
                 for (int k = 0; k < dimensions; k++)
                 {
                     _hashGrid.Add(HashGrid.Hash(new Vector3Int(i, j, k)), new List<int>());
-                    _collisionHashGrid.Add(HashGrid.Hash(new Vector3Int(i, j, k)), new HashSet<Triangle>());
+                    _dynamicCollisionHashGrid.Add(HashGrid.Hash(new Vector3Int(i, j, k)), new HashSet<Triangle>());
+                    _staticCollisionHashGrid.Add(HashGrid.Hash(new Vector3Int(i, j, k)), new HashSet<Triangle>());
                 }
     }
 
@@ -189,7 +235,7 @@ public class SPH_Manager : MonoBehaviour
         {
             cell.Value.Clear();
         }
-        foreach (var cell in _collisionHashGrid)
+        foreach (var cell in _dynamicCollisionHashGrid)
         {
             cell.Value.Clear();
         }
@@ -200,74 +246,9 @@ public class SPH_Manager : MonoBehaviour
             if (_hashGrid[hash].Count == maximumParticlesPerCell) continue;   // Prevent potential UB in neighbourList if more than maxParticlesPerCell are in a cell.
             _hashGrid[hash].Add(i);
         }
-        // 2. Recalculate hashes of each mesh.
-        for (int i = 0; i < renderers.Length; i++)
-        {
-            vertices = renderers[i].mesh.vertices;
-            normals = renderers[i].mesh.normals;
-            triangles = renderers[i].mesh.triangles;
-            localToWorld = renderers[i].transform.localToWorldMatrix;
-            for (int j = 0; j < triangles.Length; j+=3)
-            {
-                Vector3 facePos = (vertices[triangles[j]] + vertices[triangles[j + 1]] + vertices[triangles[j + 2]]) / 3;
-                Vector3 p1 = localToWorld.MultiplyPoint3x4(vertices[triangles[j]]);
-                Vector3 p2 = localToWorld.MultiplyPoint3x4(vertices[triangles[j + 1]]);
-                Vector3 p3 = localToWorld.MultiplyPoint3x4(vertices[triangles[j + 2]]);
-                Vector3 p4 = (p1 + p2 + p3) / 3f;
-                float distance1 = Vector3.Distance(p1, p2);
-                float distance2 = Vector3.Distance(p2, p3);
-                float distance3 = Vector3.Distance(p1, p3);
-                Triangle face = new Triangle();
-                face.p0 = p1;
-                face.p1 = p2;
-                face.p2 = p3;
-                face.normal = renderers[i].transform.rotation * normals[triangles[j]];
-                if (distance1 > distance2 && distance1 > distance3)
-                {
-                    int t1 = (int) (distance2 / HashGrid.CellSize);
-                    int t2 = (int)(distance3 / HashGrid.CellSize);
-                    for (int h = 0; h<= t1; h++)
-                    {
-                        for (int l = 0; l <= t2; l++)
-                        {
-                            Vector3 potentialCell = p3 + ((p2 - p3).normalized * HashGrid.CellSize * h) + ((p1 - p3).normalized * HashGrid.CellSize * l);
-                            if (face.PointInTriangle(potentialCell))
-                                _collisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
-                        }
-                    }
-                }
-                else if (distance2 > distance1 && distance2 > distance3)
-                {
-                    int t1 = Mathf.CeilToInt(distance1 / HashGrid.CellSize);
-                    int t2 = Mathf.CeilToInt(distance3 / HashGrid.CellSize);
-                    for (int h = 0; h <= t1; h++)
-                    {
-                        for (int l = 0; l <= t2; l++)
-                        {
-                            Vector3 potentialCell = p1 + ((p3 - p1).normalized * HashGrid.CellSize * l) + ((p2 - p1).normalized * HashGrid.CellSize * h);
-                            if (face.PointInTriangle(potentialCell))
-                                _collisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
-                        }
-                    }
-                }
-                else
-                {
-                    int t1 = Mathf.CeilToInt(distance1 / HashGrid.CellSize);
-                    int t2 = Mathf.CeilToInt(distance2 / HashGrid.CellSize);
-                    int h = 0, l = 0;
-                    for ( h = 0; h <= t1;h++)
-                    {
-                        for (l = 0;l <= t2; l++)
-                        {
-                            Vector3 potentialCell = p2 + ((p3 - p2).normalized * HashGrid.CellSize * l) + ((p1 - p2).normalized * HashGrid.CellSize * h);
-                            if(face.PointInTriangle(potentialCell))
-                                _collisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
+        // 2. Recalculate hashes of each collider
+        InitColliders(dynamicColliders, false);
 
-                        }
-                    }
-                }
-            }
-        }
         // 3. For each particle go through all their 8 neighbouring cells.
         //    Check each particle in those neighbouring cells for interference radius r and store the interfering ones inside the particles neighbour list.
         for (int particleIndex = 0; particleIndex < _particles.Length; particleIndex++)
@@ -292,9 +273,17 @@ public class SPH_Manager : MonoBehaviour
                         }
                     }
                 }
-                if (_collisionHashGrid.ContainsKey(cells[j]))
+                if (_dynamicCollisionHashGrid.ContainsKey(cells[j]))
                 {
-                    var neighbourCell = _collisionHashGrid[cells[j]];
+                    var neighbourCell = _dynamicCollisionHashGrid[cells[j]];
+                    foreach (var potentialNeighbour in neighbourCell)
+                    {
+                        _neighbourCollisionList[particleIndex * maximumParticlesPerCell * 8 + _neighbourCollisionTracker[particleIndex]++] = potentialNeighbour;
+                    }
+                }
+                if (_staticCollisionHashGrid.ContainsKey(cells[j]))
+                {
+                    var neighbourCell = _staticCollisionHashGrid[cells[j]];
                     foreach (var potentialNeighbour in neighbourCell)
                     {
                         _neighbourCollisionList[particleIndex * maximumParticlesPerCell * 8 + _neighbourCollisionTracker[particleIndex]++] = potentialNeighbour;
@@ -302,7 +291,6 @@ public class SPH_Manager : MonoBehaviour
                 }
             }
         }
-        // 4. The Neighbouring-list should be n-particles big, each index containing a list of each particles neighbours in radius r.
 
         ComputeDensityPressure();
         ComputeForces();
@@ -313,22 +301,20 @@ public class SPH_Manager : MonoBehaviour
     private void MakeCollision(int i)
     {
         Vector3 newPos = _particles[i].transform.position;
-        Vector3 finalNormal = Vector3.zero;
         for (int j = 0; j < _neighbourCollisionTracker[i]; j++)
         {
             Triangle face = _neighbourCollisionList[i * maximumParticlesPerCell * 8 + j];
-            bool d = face.PointInTriangle(newPos + (velocities[i].normalized * (radius/2)));
-            if (!d)
+            Vector3 closestPoint = face.ClosestPointToPlane(newPos);
+            if (Vector3.Distance(newPos, closestPoint) > radius/2 || !face.PointInTriangle(closestPoint) || Vector3.Dot(face.normal, velocities[i].normalized) >=0)
                 continue;
-            finalNormal += face.normal;
-            Debug.Log(face.p1);
-            Debug.Log(face.p2);
-            Debug.Log(face.p0);
+            /*
+            Debug.DrawLine(newPos , velocities[i].normalized * 3 + newPos, Color.magenta, 5);
+            Debug.DrawLine(newPos, Vector3.Reflect(velocities[i], face.normal.normalized).normalized * 3 + newPos, Color.green, 5);
+            Debug.Log("Reflected " + face.normal.normalized);
+            */
+            velocities[i] = Vector3.Reflect(velocities[i], face.normal.normalized);
         }
-        if(!finalNormal.Equals(Vector3.zero))
-            velocities[i] = Vector3.Reflect(velocities[i], finalNormal.normalized);
     }
-
     private void Integrate()
     {
         for (int i = 0; i < numberOfParticles; i++)
@@ -653,7 +639,11 @@ public class SPH_Manager : MonoBehaviour
 
     #endregion
 
-
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireCube(new Vector3(dimensions / 2, dimensions / 2, dimensions / 2), Vector3.one * dimensions);
+    }
 
 }
 
