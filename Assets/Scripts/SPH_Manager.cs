@@ -472,7 +472,8 @@ public class SPH_Manager : MonoBehaviour
                 forces[i] += viscoForce;
             }
             // Gravity
-            forces[i] += g;
+            Vector3 center = new Vector3(dimensions / 2, dimensions / 2, dimensions / 2);
+            forces[i] += (center - _particles[i].transform.position).normalized * 9.81f ;
         }
     }
 
