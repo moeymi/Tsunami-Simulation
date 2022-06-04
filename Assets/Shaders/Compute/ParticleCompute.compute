@@ -194,8 +194,7 @@ float ViscosityLaplacian(float r, float h)
 
 float3 TsunamiForces(float3 position)
 {
-    if (position.y < 1.5)
-        return float3(0, 0, 0);
+
 
     float halfD = Dimensions / 2.0f;
     int quarter = 0;
@@ -208,6 +207,9 @@ float3 TsunamiForces(float3 position)
         if (position.x <= halfD)
             quarter++;
     }
+
+    if (position.y < 1.5 && quarter != 0)
+        return float3(0, 0, 0);
 
     float x_percentage = position.x / Dimensions;
     float y_percentage = position.y / Dimensions;
