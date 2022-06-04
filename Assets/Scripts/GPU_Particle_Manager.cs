@@ -23,6 +23,7 @@ public class GPU_Particle_Manager : MonoBehaviour
     private float mass2;
 
     [Header("Simulation properties")]
+    public bool TsunamiMode;
     public int numberOfParticles = 50000;
     public int dimensions = 100;
     public int maximumParticlesPerCell = 500;
@@ -117,13 +118,45 @@ public class GPU_Particle_Manager : MonoBehaviour
         int particlesPerDimension = Mathf.CeilToInt(Mathf.Pow(numberOfParticles, 1f / 3f));
 
         int counter = 0;
+        /*        while (counter < numberOfParticles)
+                {
+                    for (int x = 0; x < particlesPerDimension; x++)
+                        for (int y = 0; y < particlesPerDimension; y++)
+                            for (int z = 0; z < particlesPerDimension; z++)
+                            {
+                                Vector3 startPos = new Vector3 (dimensions - x , dimensions - y , dimensions - z) / radius;
+                                _particles[counter] = new Vector3
+                                (
+                                    startPos.x,
+                                    startPos.y,
+                                    startPos.z
+                                );
+                                _densities[counter] = -1f;
+                                _pressures[counter] = 0.0f;
+                                _forces[counter] = Vector3.zero;
+                                _velocities[counter] = Vector3.down * 50;
+
+                                if (++counter == numberOfParticles)
+                                {
+                                    return;
+                                }
+                            }
+                }*/
+        float x_start_offset = 0 + radius;
+        float y_start_offset = 0 + radius +0.01f;
+        float z_start_offset = 0 + radius;
+        float x_end_offset = dimensions - radius;
+        float y_end_offset = dimensions - radius;
+        float z_end_offset = dimensions - radius;
+
         while (counter < numberOfParticles)
         {
-            for (int x = 0; x < particlesPerDimension; x++)
-                for (int y = 0; y < particlesPerDimension; y++)
-                    for (int z = 0; z < particlesPerDimension; z++)
+            for (float y = y_start_offset; y < y_end_offset; y += radius)
+                for (float x = x_start_offset; x < x_end_offset; x += radius)
+                    for (float z = z_start_offset; z < z_end_offset; z += radius)
                     {
-                        Vector3 startPos = new Vector3 (dimensions - x , dimensions - y , dimensions - z) / radius;
+
+                        Vector3 startPos = new Vector3(x, y, z) + Vector3.one * Random.Range(-0.5f, 0.5f);
                         _particles[counter] = new Vector3
                         (
                             startPos.x,
@@ -139,6 +172,7 @@ public class GPU_Particle_Manager : MonoBehaviour
                         {
                             return;
                         }
+                    
                     }
         }
     }
@@ -179,6 +213,7 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader.SetVector("surfaceColor", surfaceColor);
         computeShader.SetFloat("colorModifier", colorModifier);
         computeShader.SetFloat("noiseRate", noiseRate);
+        computeShader.SetBool ("TsunamiMode", TsunamiMode);
     }
 
     void InitComputeBuffers()
@@ -308,5 +343,6 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader?.SetVector("surfaceColor", surfaceColor);
         computeShader?.SetFloat("colorModifier", colorModifier);
         computeShader?.SetFloat("noiseRate", noiseRate);
+        computeShader?.SetBool("TsunamiMode", TsunamiMode);
     }
 }

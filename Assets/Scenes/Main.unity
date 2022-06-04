@@ -139,7 +139,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &181817654
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -160,7 +160,8 @@ MonoBehaviour:
   g: {x: 0, y: -9.81, z: 0}
   gasConstant: 20
   restDensity: 1
-  damping: -0.9
+  damping: -0.5
+  tsunamiMode: 0
   numberOfParticles: 500
   dimensions: 15
   maximumParticlesPerCell: 500
@@ -700,7 +701,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1329585238
 Transform:
   m_ObjectHideFlags: 0
@@ -733,7 +734,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &2061227349
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -758,6 +759,7 @@ MonoBehaviour:
   - -9.81
   - 0
   damping: -0.5
+  TsunamiMode: 0
   numberOfParticles: 100000
   dimensions: 70
   maximumParticlesPerCell: 200

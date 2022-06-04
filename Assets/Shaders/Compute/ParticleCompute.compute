@@ -8,6 +8,7 @@
 
 float CellSize;
 int Dimensions;
+bool TsunamiMode;
 
 int3 GetCell(float3 position)
 {
@@ -191,6 +192,38 @@ float ViscosityLaplacian(float r, float h)
     return coef * (h - r);
 }
 
+float3 TsunamiForces(float3 position)
+{
+    float halfD = Dimensions / 2.0f;
+    int quarter = 0;
+
+
+    if (position.x > halfD) quarter++;
+    if (position.y > halfD)
+    {
+        quarter++;
+        if (position.x <= halfD)
+            quarter++;
+    }
+
+    float x_percentage = position.x / Dimensions;
+    float y_percentage = position.y / Dimensions;
+
+    switch (quarter)
+    {
+    case 0:
+        return float3(20, 0, 0);
+    case 1:
+        return float3(-5 * x_percentage, 25 * (1 - y_percentage), 0);
+    case 2:
+        return  float3(-50 * x_percentage, -50 * y_percentage, 0);
+    case 3:
+        return  float3(200, -400 * y_percentage, 0);
+    }
+
+    return float3(0, 0, 0);
+}
+
 [numthreads(100,1,1)]
 void ComputeDensityPressure(uint3 id : SV_DispatchThreadID)
 {
@@ -236,7 +269,12 @@ void ComputeForces(uint3 id : SV_DispatchThreadID)
     }
     // Gravity
     _forces[id.x] += g;
+    if (TsunamiMode)
+        _forces[id.x] += TsunamiForces(_particles[id.x]);
 }
+
+
+
 
 
 float Hash_From2D(float Vec, float time)
