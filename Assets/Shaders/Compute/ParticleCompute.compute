@@ -457,9 +457,15 @@ void ComputeCollisions(uint3 id : SV_DispatchThreadID) {
         const int neighbourIndex = _neighbourCollisionList[id.x * maximumParticlesPerCell * 8 + j];
         if (dot(_tris[neighbourIndex].normal, normalize(_velocities[id.x])) >= 0)
             continue;
-        //float3 newVel = float3(_velocities[id.x].x, _velocities[id.x].y * -1, _velocities[id.x].z);
+
+        float collisionDamping = 1;
+        float3 closestPoint = ProjectPointOnPlane(_tris[neighbourIndex].normal, _tris[neighbourIndex].p0, _particles[id.x]);
+        float velocityTowardsCollider = dot(_velocities[id.x], normalize(closestPoint - _particles[id.x]));
+
+        if (velocityTowardsCollider > 1) collisionDamping *= 0.5f;
+
         float3 newVel = reflect(_velocities[id.x], _tris[neighbourIndex].normal);
-        _velocities[id.x] = newVel;
+        _velocities[id.x] = newVel * collisionDamping;
     }
 }
 
@@ -474,34 +480,52 @@ void Integrate(uint3 id : SV_DispatchThreadID)
 
     if (newPos.x - epsilon < 0.0f)
     {
-        _velocities[id.x].x *= damping;
+        if (_velocities[id.x].x < 1)
+            _velocities[id.x].x *= damping;
+        else
+            _velocities[id.x].x *= -1;
         newPos.x = epsilon;
     }
     else if(newPos.x + epsilon > Dimensions - 1.f)
     {
-        _velocities[id.x].x *= damping;
+        if (_velocities[id.x].x > 1)
+            _velocities[id.x].x *= damping;
+        else
+            _velocities[id.x].x *= -1;
         newPos.x = Dimensions - 1 - epsilon;
     }
             
     if (newPos.y - epsilon < 0.0f)
     {
-        _velocities[id.x].y *= damping;
+        if (_velocities[id.x].y < 1)
+            _velocities[id.x].y *= damping;
+        else
+            _velocities[id.x].y *= -1;
         newPos.y = epsilon;
     }
     else if(newPos.y + epsilon > Dimensions - 1.f)
     {
-        _velocities[id.x].y *= damping;
+        if (_velocities[id.x].y > 1)
+            _velocities[id.x].y *= damping;
+        else
+            _velocities[id.x].y *= -1;
         newPos.y = Dimensions - 1 - epsilon;
     }
             
     if (newPos.z - epsilon < 0.0f)
     {
-        _velocities[id.x].z *= damping;
+        if (_velocities[id.x].z < 1)
+            _velocities[id.x].z *= damping;
+        else
+            _velocities[id.x].z *= -1;
         newPos.z = epsilon;
     }
     else if(_particles[id.x].z + epsilon > Dimensions - 1.f) 
     {
-        _velocities[id.x].z *= damping;
+        if(_velocities[id.x].z > 1)
+            _velocities[id.x].z *= damping;
+        else
+            _velocities[id.x].z *= -1;
         newPos.z = Dimensions - 1 - epsilon;
     }
     float colorEstimate = pow(abs(newPos.y / Dimensions), colorModifier);

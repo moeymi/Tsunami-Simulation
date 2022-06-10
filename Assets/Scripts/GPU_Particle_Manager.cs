@@ -349,6 +349,7 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader.SetBuffer(computeForcesKernel, "_forces", _forcesBuffer);
 
         computeShader.SetBuffer(computeCollisionsKernel, "_tris", _trisBuffer);
+        computeShader.SetBuffer(computeCollisionsKernel, "_particles", _particlesBuffer);
         computeShader.SetBuffer(computeCollisionsKernel, "_velocities", _velocitiesBuffer);
         computeShader.SetBuffer(computeCollisionsKernel, "_neighbourCollisionList", _neighbourCollisionListBuffer);
         computeShader.SetBuffer(computeCollisionsKernel, "_neighbourCollisionTracker", _neighbourCollisionTrackerBuffer);
@@ -366,14 +367,6 @@ public class GPU_Particle_Manager : MonoBehaviour
     private void Start()
     {
         computeShader.Dispatch(recalculateCollisionHashGridKernel, _tris.Length, 1, 1);
-        /*_collisionHashGridBuffer.GetData(_collisionHashGrid);
-        for(int i = 0;i < _collisionHashGrid.Length;i++)
-        {
-            if (_collisionHashGrid[i] != 0)
-            {
-                Debug.Log(i + " " + _collisionHashGrid[i]);
-            }
-        }*/
     }
 
     void Update()
@@ -384,15 +377,6 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader.Dispatch(buildNeighbourListKernel, numberOfParticles / 100, 1, 1);
         computeShader.Dispatch(buildCollisionNeighbourListKernel, numberOfParticles / 100, 1, 1);
         int[] kk = new int[numberOfParticles];
-
-        /*_neighbourCollisionTrackerBuffer.GetData(kk);
-        for (int i = 0; i < kk.Length; i++)
-        {
-            if (kk[i] != 0)
-            {
-                Debug.Log(i + " " + kk[i]);
-            }
-        }*/
         computeShader.Dispatch(computeForcesKernel, numberOfParticles / 100, 1, 1);
         computeShader.Dispatch(computeCollisionsKernel, numberOfParticles / 100, 1, 1);
         computeShader.Dispatch(integrateKernel, numberOfParticles / 100, 1, 1);

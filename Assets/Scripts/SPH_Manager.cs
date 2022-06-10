@@ -324,11 +324,6 @@ public class SPH_Manager : MonoBehaviour
             Vector3 closestPoint = face.ClosestPointToPlane(newPos);
             if (Vector3.Distance(newPos, closestPoint) > radius/2 || !face.PointInTriangle(closestPoint) || Vector3.Dot(face.normal, velocities[i].normalized) >=0)
                 continue;
-            /*
-            Debug.DrawLine(newPos , velocities[i].normalized * 3 + newPos, Color.magenta, 5);
-            Debug.DrawLine(newPos, Vector3.Reflect(velocities[i], face.normal.normalized).normalized * 3 + newPos, Color.green, 5);
-            Debug.Log("Reflected " + face.normal.normalized);
-            */
             float collisionDamping = 1.0f;
             Vector3 force = Vector3.Project(velocities[i], (closestPoint - newPos).normalized);
 
