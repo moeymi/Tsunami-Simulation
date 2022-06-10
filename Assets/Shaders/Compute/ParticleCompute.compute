@@ -1,14 +1,25 @@
 #pragma kernel ClearHashGrid
 #pragma kernel RecalculateHashGrid
+#pragma kernel RecalculateCollisionHashGrid
 #pragma kernel BuildNeighbourList
-#pragma kernel ComputeDensityPressure
+#pragma kernel BuildCollisionNeighbourList
 #pragma kernel ComputeForces
+#pragma kernel ComputeCollisions
 #pragma kernel Integrate
 #include "UnityCG.cginc"
+
 
 float CellSize;
 int Dimensions;
 bool TsunamiMode;
+
+struct Tri {
+    float3 p0;
+    float3 p1;
+    float3 p2;
+    float3 normal;
+};
+
 
 int3 GetCell(float3 position)
 {
@@ -19,13 +30,85 @@ int Hash(int3 cell)
 {
     return cell.x + Dimensions * (cell.y + Dimensions * cell.z);
 }
+float3 Project(float3 a, float3 b) {
+    float3 c = (dot(a, b) / pow(normalize(b), 2)) * b;
+    return c;
+}
+
+bool PointInTriangle(Tri tri, float3 p)
+{
+    float3 c = cross(tri.p2 - tri.p0, tri.p2 - tri.p1);
+    float triArea = length(c) / 2;
+    float3 d1;
+    float3 d2;
+    float sumArea = 0;
+    d1 = p - tri.p0;
+    d2 = p - tri.p1;
+    c = cross(d1, d2);
+    sumArea += length(c) / 2;
+
+    d1 = p - tri.p1;
+    d2 = p - tri.p2;
+    c = cross(d1, d2);
+    sumArea += length(c) / 2;
+
+    d1 = p - tri.p0;
+    d2 = p - tri.p2;
+    c = cross(d1, d2);
+    sumArea += length(c) / 2;
+
+    if (abs(sumArea - triArea) < 0.5f)
+    {
+        return true;
+    }
+    return false;
+}
+
+//Get the shortest distance between a point and a plane. The output is signed so it holds information
+//as to which side of the plane normal the point is.
+float SignedDistancePlanePoint(float3 planeNormal, float3 planePoint, float3 p) {
+    return dot(planeNormal, (p - planePoint));
+}
+
+//create a vector of direction "vector" with length "size"
+float3 SetVectorLength(float3 v, float size) {
+
+    //normalize the vector
+    float3 vectorNormalized = normalize(v);
+
+    //scale the vector
+    return vectorNormalized *= size;
+}
+
+float3 ProjectPointOnPlane(float3 planeNormal, float3 planePoint, float3 p) {
+
+    float distance;
+    float3 translationVector;
+
+    //First calculate the distance from the point to the plane:
+    distance = SignedDistancePlanePoint(planeNormal, planePoint, p);
+
+    //Reverse the sign of the distance
+    distance *= -1;
+
+    //Get a translation vector
+    translationVector = SetVectorLength(planeNormal, distance);
+
+    //Translate the point to form a projection
+    return p + translationVector;
+}
 
 RWStructuredBuffer<float3> _particles;
+RWStructuredBuffer<Tri> _tris;
 RWStructuredBuffer<float4> _colors;
 RWStructuredBuffer<int> _neighbourList;
 RWStructuredBuffer<int> _neighbourTracker;
+RWStructuredBuffer<int> _neighbourCollisionList;
+RWStructuredBuffer<int> _neighbourCollisionTracker;
 RWStructuredBuffer<uint> _hashGrid;
 RWStructuredBuffer<uint> _hashGridTracker;
+RWStructuredBuffer<uint> _collisionHashGrid;
+RWStructuredBuffer<uint> _collisionHashGridTracker;
 RWStructuredBuffer<float> _densities;
 RWStructuredBuffer<float> _pressures;
 RWStructuredBuffer<float3> _velocities;
@@ -75,6 +158,77 @@ void RecalculateHashGrid(uint3 id : SV_DispatchThreadID)
         return;
     }
     _hashGrid[cellHash * maximumParticlesPerCell + previousCount] = id.x;
+}
+
+[numthreads(1, 1, 1)]
+void RecalculateCollisionHashGrid(uint3 id : SV_DispatchThreadID)
+{
+    Tri tri = _tris[id.x];
+    float distance1 = length(tri.p0 - tri.p1);
+    float distance2 = length(tri.p1 - tri.p2);
+    float distance3 = length(tri.p0 - tri.p2);
+    if (distance1 > distance2 && distance1 > distance3)
+    {
+        int t1 = (int)(distance2 / CellSize);
+        int t2 = (int)(distance3 / CellSize);
+        for (int h = 0; h <= t1; h++)
+        {
+            for (int l = 0; l <= t2; l++)
+            {
+                float3 potentialCell = tri.p2 + (normalize(tri.p1 - tri.p2) * CellSize * h) + (normalize(tri.p0 - tri.p2) * CellSize * l);
+                if (potentialCell.x < 0 || potentialCell.y < 0 || potentialCell.z < 0)
+                    continue;
+                if (PointInTriangle(tri, potentialCell)) {
+                    int prevCount = 0;
+                    const int cellHash = Hash(GetCell(potentialCell));
+                    InterlockedAdd(_collisionHashGridTracker[cellHash], 1, prevCount);
+                    _collisionHashGrid[cellHash * maximumParticlesPerCell + prevCount] = id.x;
+                }
+            }
+        }
+    }
+    else if (distance2 > distance1 && distance2 > distance3)
+    {
+        int t1 = (int)(distance1 / CellSize);
+        int t2 = (int)(distance3 / CellSize);
+        for (int h = 0; h <= t1; h++)
+        {
+            for (int l = 0; l <= t2; l++)
+            {
+                float3 potentialCell = tri.p0 + (normalize(tri.p2 - tri.p0) * CellSize * l) + (normalize(tri.p1 - tri.p0) * CellSize * h);
+
+                if (potentialCell.x < 0 || potentialCell.y < 0 || potentialCell.z < 0)
+                    continue;
+                if (PointInTriangle(tri, potentialCell)) {
+                    int prevCount = 0;
+                    const int cellHash = Hash(GetCell(potentialCell));
+                    InterlockedAdd(_collisionHashGridTracker[cellHash], 1, prevCount);
+                    _collisionHashGrid[cellHash * maximumParticlesPerCell + prevCount] = id.x;
+                }
+            }
+        }
+    }
+    else
+    {
+        int t1 = (int)(distance1 / CellSize);
+        int t2 = (int)(distance2 / CellSize);
+        int h = 0, l = 0;
+        for (h = 0; h <= t1; h++)
+        {
+            for (l = 0; l <= t2; l++)
+            {
+                float3 potentialCell = tri.p1 + (normalize(tri.p2 - tri.p1) * CellSize * l) + (normalize(tri.p0 - tri.p1) * CellSize * h);
+                if (potentialCell.x < 0 || potentialCell.y < 0 || potentialCell.z < 0)
+                    continue;
+                if (PointInTriangle(tri, potentialCell)) {
+                    int prevCount = 0;
+                    const int cellHash = Hash(GetCell(potentialCell));
+                    InterlockedAdd(_collisionHashGridTracker[cellHash], 1, prevCount);
+                    _collisionHashGrid[cellHash * maximumParticlesPerCell + prevCount] = id.x;
+                }
+            }
+        }
+    }
 }
 
 void GetNearbyKeys(int3 originIndex, float3 position, out int nearbyKeys[8])
@@ -167,7 +321,28 @@ void BuildNeighbourList(uint3 id : SV_DispatchThreadID)
             }
         }
     }
-    // n. The Neighbouring-list should be n-particles big, each index containing a list of each particles neighbours in radius r.
+}
+[numthreads(100, 1, 1)]
+void BuildCollisionNeighbourList(uint3 id : SV_DispatchThreadID)
+{
+    _neighbourCollisionTracker[id.x] = 0;
+    const int3 cell = GetCell(_particles[id.x]);
+    int cells[8];
+    GetNearbyKeys(cell, _particles[id.x], cells);
+
+    for (uint j = 0; j < 8; j++)
+    {
+        if (cells[j] == -1) continue;
+        const uint numberOfTrianglesInCell = _collisionHashGridTracker[cells[j]];
+        for (uint index = 0; index < numberOfTrianglesInCell; index++)
+        {
+            const uint potentialNeighbour = _collisionHashGrid[cells[j] * maximumParticlesPerCell + index];
+            float3 closestPoint = ProjectPointOnPlane(_tris[potentialNeighbour].normal, _tris[potentialNeighbour].p0, _particles[id.x]);
+            if (length(closestPoint - _particles[id.x]) > radius || !PointInTriangle(_tris[potentialNeighbour], closestPoint))
+                continue;
+            _neighbourCollisionList[id.x * maximumParticlesPerCell * 8 + _neighbourCollisionTracker[id.x]++] = potentialNeighbour;
+        }
+    }
 }
 
 float Poly6(float h)
@@ -194,11 +369,8 @@ float ViscosityLaplacian(float r, float h)
 
 float3 TsunamiForces(float3 position)
 {
-
-
     float halfD = Dimensions / 2.0f;
     int quarter = 0;
-
 
     if (position.x > halfD) quarter++;
     if (position.y > halfD)
@@ -225,12 +397,11 @@ float3 TsunamiForces(float3 position)
     case 3:
         return  float3(200, -500 * (1-x_percentage), 0);
     }
-
     return float3(0, 0, 0);
 }
 
 [numthreads(100,1,1)]
-void ComputeDensityPressure(uint3 id : SV_DispatchThreadID)
+void ComputeForces(uint3 id : SV_DispatchThreadID)
 {
     float3 origin = _particles[id.x];
     float sum = 0.f;
@@ -239,19 +410,14 @@ void ComputeDensityPressure(uint3 id : SV_DispatchThreadID)
         int neighbourIndex = _neighbourList[id.x * maximumParticlesPerCell * 8 + j];
         float dist = length(origin - _particles[neighbourIndex]);
         float distanceSqr = dist * dist;
-        sum += k1 * pow(radius2 - distanceSqr , 3);
+        sum += k1 * pow(radius2 - distanceSqr, 3);
     }
 
     sum += k1 * pow(radius, 6);
 
     _densities[id.x] = sum;
-    // Compute pressure based on density
     _pressures[id.x] = gasConstant * (_densities[id.x] - restDensity);
-}
 
-[numthreads(100,1,1)]
-void ComputeForces(uint3 id : SV_DispatchThreadID)
-{
     _forces[id.x] = float3(0, 0, 0);
     for (int j = 0; j < _neighbourTracker[id.x]; j++)
     {
@@ -278,28 +444,33 @@ void ComputeForces(uint3 id : SV_DispatchThreadID)
         _forces[id.x] += TsunamiForces(_particles[id.x]);
 }
 
-
-
-
-
 float Hash_From2D(float Vec, float time)
 {
     float f = time + Vec * 37.70;
     return frac(sin(f) * 100.347);
 }
 
+[numthreads(100, 1, 1)]
+void ComputeCollisions(uint3 id : SV_DispatchThreadID) {
+    for (int j = 0; j < _neighbourCollisionTracker[id.x]; j++)
+    {
+        const int neighbourIndex = _neighbourCollisionList[id.x * maximumParticlesPerCell * 8 + j];
+        if (dot(_tris[neighbourIndex].normal, normalize(_velocities[id.x])) >= 0)
+            continue;
+        //float3 newVel = float3(_velocities[id.x].x, _velocities[id.x].y * -1, _velocities[id.x].z);
+        float3 newVel = reflect(_velocities[id.x], _tris[neighbourIndex].normal);
+        _velocities[id.x] = newVel;
+    }
+}
+
 [numthreads(100,1,1)]
 void Integrate(uint3 id : SV_DispatchThreadID)
 {
-    // forward Euler integration
     float3 acceleration = _forces[id.x] / _densities[id.x];
     _velocities[id.x] += acceleration * dt;
 
-    //velocities[i] += Time.deltaTime * forces[i] / mass;
-
     float3 newPos = _particles[id.x];
     newPos += dt * _velocities[id.x];
-
 
     if (newPos.x - epsilon < 0.0f)
     {
@@ -344,6 +515,3 @@ void Integrate(uint3 id : SV_DispatchThreadID)
         _colors[id.x] = newColor;
     _particles[id.x] = newPos;
 }
-
-
-

@@ -1,7 +1,16 @@
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEditor;
 using UnityEngine;
 using Random = UnityEngine.Random;
+
+struct Tri
+{
+    public Vector3 p0;
+    public Vector3 p1;
+    public Vector3 p2;
+    public Vector3 normal;
+}
 
 public class GPU_Particle_Manager : MonoBehaviour
 {
@@ -42,11 +51,18 @@ public class GPU_Particle_Manager : MonoBehaviour
     public float averageFPS;
 
     private Vector3[] _particles;
+    private Tri[] _tris;
     private Color[] _colors;
-    // Too big for feasible serialisation (crash on expand).
-    private int[] _neighbourList; // Stores all neighbours of a particle aligned at 'particleIndex * maximumParticlesPerCell * 8'
+
+    private int[] _neighbourList;
+    private int[] _neighbourCollisionList;
+
     private uint[] _hashGrid;
     public uint[] _hashGridTracker;
+
+    private uint[] _collisionHashGrid;
+    public uint[] _collisionHashGridTracker;
+
     private float[] _densities;
     private float[] _pressures;
     private Vector3[] _velocities;
@@ -57,11 +73,20 @@ public class GPU_Particle_Manager : MonoBehaviour
     float k3;
 
     private ComputeBuffer _particlesBuffer;
+    private ComputeBuffer _trisBuffer;
     private ComputeBuffer _argsBuffer;
     private ComputeBuffer _neighbourListBuffer;
     private ComputeBuffer _neighbourTrackerBuffer;
+
+    private ComputeBuffer _neighbourCollisionListBuffer;
+    private ComputeBuffer _neighbourCollisionTrackerBuffer;
+
     private ComputeBuffer _hashGridBuffer;
     private ComputeBuffer _hashGridTrackerBuffer;
+
+    private ComputeBuffer _collisionHashGridBuffer;
+    private ComputeBuffer _collisionHashGridTrackerBuffer;
+
     private ComputeBuffer _densitiesBuffer;
     private ComputeBuffer _pressuresBuffer;
     private ComputeBuffer _velocitiesBuffer;
@@ -73,10 +98,14 @@ public class GPU_Particle_Manager : MonoBehaviour
     public ComputeShader computeShader;
     private int clearHashGridKernel;
     private int recalculateHashGridKernel;
+    private int recalculateCollisionHashGridKernel;
     private int buildNeighbourListKernel;
-    private int computeDensityPressureKernel;
+    private int buildCollisionNeighbourListKernel;
     private int computeForcesKernel;
+    private int computeCollisionsKernel;
     private int integrateKernel;
+
+    public Transform collidersParent;
 
     [StructLayout(LayoutKind.Sequential, Size = 28)]
     private struct Position
@@ -98,6 +127,7 @@ public class GPU_Particle_Manager : MonoBehaviour
         k2 = -(45 * mass) / (Mathf.PI * Mathf.Pow(radius, 6));
         k3 = (45 * viscosityCoefficient * mass) / (Mathf.PI * Mathf.Pow(radius, 6));
 
+        InitTris();
         RespawnParticles();
         FindKernels();
         InitComputeShader();
@@ -118,30 +148,6 @@ public class GPU_Particle_Manager : MonoBehaviour
         int particlesPerDimension = Mathf.CeilToInt(Mathf.Pow(numberOfParticles, 1f / 3f));
 
         int counter = 0;
-        /*        while (counter < numberOfParticles)
-                {
-                    for (int x = 0; x < particlesPerDimension; x++)
-                        for (int y = 0; y < particlesPerDimension; y++)
-                            for (int z = 0; z < particlesPerDimension; z++)
-                            {
-                                Vector3 startPos = new Vector3 (dimensions - x , dimensions - y , dimensions - z) / radius;
-                                _particles[counter] = new Vector3
-                                (
-                                    startPos.x,
-                                    startPos.y,
-                                    startPos.z
-                                );
-                                _densities[counter] = -1f;
-                                _pressures[counter] = 0.0f;
-                                _forces[counter] = Vector3.zero;
-                                _velocities[counter] = Vector3.down * 50;
-
-                                if (++counter == numberOfParticles)
-                                {
-                                    return;
-                                }
-                            }
-                }*/
         float x_start_offset = 0 + radius;
         float y_start_offset = 0 + radius +0.01f;
         float z_start_offset = 0 + radius;
@@ -155,7 +161,6 @@ public class GPU_Particle_Manager : MonoBehaviour
                 for (float x = x_start_offset; x < x_end_offset; x += radius)
                     for (float z = z_start_offset; z < z_end_offset; z += radius)
                     {
-
                         Vector3 startPos = new Vector3(x, y, z) + Vector3.one * Random.Range(-0.5f, 0.5f);
                         _particles[counter] = new Vector3
                         (
@@ -181,9 +186,11 @@ public class GPU_Particle_Manager : MonoBehaviour
     {
         clearHashGridKernel = computeShader.FindKernel("ClearHashGrid");
         recalculateHashGridKernel = computeShader.FindKernel("RecalculateHashGrid");
+        recalculateCollisionHashGridKernel = computeShader.FindKernel("RecalculateCollisionHashGrid");
         buildNeighbourListKernel = computeShader.FindKernel("BuildNeighbourList");
-        computeDensityPressureKernel = computeShader.FindKernel("ComputeDensityPressure");
+        buildCollisionNeighbourListKernel = computeShader.FindKernel("BuildCollisionNeighbourList");
         computeForcesKernel = computeShader.FindKernel("ComputeForces");
+        computeCollisionsKernel = computeShader.FindKernel("ComputeCollisions");
         integrateKernel = computeShader.FindKernel("Integrate");
     }
 
@@ -216,6 +223,39 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader.SetBool ("TsunamiMode", TsunamiMode);
     }
 
+    // for calculations
+    Vector3[] vertices;
+    int[] triangles;
+    Vector3[] normals;
+    Matrix4x4 localToWorld;
+    private void InitTris()
+    {
+        MeshFilter[] colliders = collidersParent.GetComponentsInChildren<MeshFilter>();
+        List<Tri> trisList = new List<Tri>();
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            vertices = colliders[i].mesh.vertices;
+            normals = colliders[i].mesh.normals;
+            triangles = colliders[i].mesh.triangles;
+            localToWorld = colliders[i].transform.localToWorldMatrix;
+            for (int j = 0; j < triangles.Length; j += 3)
+            {
+                Vector3 facePos = (vertices[triangles[j]] + vertices[triangles[j + 1]] + vertices[triangles[j + 2]]) / 3;
+                Vector3 p0 = localToWorld.MultiplyPoint3x4(vertices[triangles[j]]);
+                Vector3 p1 = localToWorld.MultiplyPoint3x4(vertices[triangles[j + 1]]);
+                Vector3 p2 = localToWorld.MultiplyPoint3x4(vertices[triangles[j + 2]]);
+                trisList.Add(new Tri
+                {
+                    normal = colliders[i].transform.rotation * normals[triangles[j]],
+                    p0 = p0,
+                    p1 = p1,
+                    p2 = p2
+                });
+            }
+        }
+        _tris = trisList.ToArray();
+    }
+
     void InitComputeBuffers()
     {
         uint[] args = {
@@ -231,26 +271,44 @@ public class GPU_Particle_Manager : MonoBehaviour
         _particlesBuffer = new ComputeBuffer(numberOfParticles, sizeof(float) * 3);
         _particlesBuffer.SetData(_particles);
 
+        _trisBuffer = new ComputeBuffer(_tris.Length, sizeof(float) * 3 * 4);
+        _trisBuffer.SetData(_tris);
+
         _colorsBuffer = new ComputeBuffer(numberOfParticles, sizeof(float) * 4);
         _colorsBuffer.SetData(_colors);
 
         _neighbourList = new int[numberOfParticles * maximumParticlesPerCell * 8];
+        _neighbourCollisionList = new int[numberOfParticles * maximumParticlesPerCell * 8];
 
         _hashGrid = new uint[dimensions * dimensions * dimensions * maximumParticlesPerCell];
         _hashGridTracker = new uint[dimensions * dimensions * dimensions];
+
+        _collisionHashGrid = new uint[dimensions * dimensions * dimensions * maximumParticlesPerCell];
+        _collisionHashGridTracker = new uint[dimensions * dimensions * dimensions];
 
         _neighbourListBuffer = new ComputeBuffer(numberOfParticles * maximumParticlesPerCell * 8, sizeof(int));
         _neighbourListBuffer.SetData(_neighbourList);
         _neighbourTrackerBuffer = new ComputeBuffer(numberOfParticles, sizeof(int));
 
+        _neighbourCollisionListBuffer = new ComputeBuffer(maximumParticlesPerCell * numberOfParticles * 8, sizeof(int));
+        _neighbourCollisionListBuffer.SetData(_neighbourCollisionList);
+        _neighbourCollisionTrackerBuffer = new ComputeBuffer(numberOfParticles, sizeof(int));
+
         _hashGridBuffer = new ComputeBuffer(dimensions * dimensions * dimensions * maximumParticlesPerCell, sizeof(uint));
         _hashGridBuffer.SetData(_hashGrid);
+
         _hashGridTrackerBuffer = new ComputeBuffer(dimensions * dimensions * dimensions, sizeof(uint));
         _hashGridTrackerBuffer.SetData(_hashGridTracker);
 
+        _collisionHashGridBuffer = new ComputeBuffer(dimensions * dimensions * dimensions * maximumParticlesPerCell, sizeof(uint));
+        _collisionHashGridBuffer.SetData(_collisionHashGrid);
+
+        _collisionHashGridTrackerBuffer = new ComputeBuffer(dimensions * dimensions * dimensions, sizeof(uint));
+        _collisionHashGridTrackerBuffer.SetData(_collisionHashGridTracker);
+
         _densitiesBuffer = new ComputeBuffer(numberOfParticles, sizeof(float));
         _densitiesBuffer.SetData(_densities);
-        Debug.Log(_densitiesBuffer.count);
+
         _pressuresBuffer = new ComputeBuffer(numberOfParticles, sizeof(float));
         _pressuresBuffer.SetData(_pressures);
 
@@ -265,17 +323,22 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader.SetBuffer(recalculateHashGridKernel, "_hashGrid", _hashGridBuffer);
         computeShader.SetBuffer(recalculateHashGridKernel, "_hashGridTracker", _hashGridTrackerBuffer);
 
+        computeShader.SetBuffer(recalculateCollisionHashGridKernel, "_tris", _trisBuffer);
+        computeShader.SetBuffer(recalculateCollisionHashGridKernel, "_collisionHashGrid", _collisionHashGridBuffer);
+        computeShader.SetBuffer(recalculateCollisionHashGridKernel, "_collisionHashGridTracker", _collisionHashGridTrackerBuffer);
+
         computeShader.SetBuffer(buildNeighbourListKernel, "_particles", _particlesBuffer);
         computeShader.SetBuffer(buildNeighbourListKernel, "_hashGrid", _hashGridBuffer);
         computeShader.SetBuffer(buildNeighbourListKernel, "_hashGridTracker", _hashGridTrackerBuffer);
         computeShader.SetBuffer(buildNeighbourListKernel, "_neighbourList", _neighbourListBuffer);
         computeShader.SetBuffer(buildNeighbourListKernel, "_neighbourTracker", _neighbourTrackerBuffer);
 
-        computeShader.SetBuffer(computeDensityPressureKernel, "_neighbourTracker", _neighbourTrackerBuffer);
-        computeShader.SetBuffer(computeDensityPressureKernel, "_neighbourList", _neighbourListBuffer);
-        computeShader.SetBuffer(computeDensityPressureKernel, "_particles", _particlesBuffer);
-        computeShader.SetBuffer(computeDensityPressureKernel, "_densities", _densitiesBuffer);
-        computeShader.SetBuffer(computeDensityPressureKernel, "_pressures", _pressuresBuffer);
+        computeShader.SetBuffer(buildCollisionNeighbourListKernel, "_particles", _particlesBuffer);
+        computeShader.SetBuffer(buildCollisionNeighbourListKernel, "_tris", _trisBuffer);
+        computeShader.SetBuffer(buildCollisionNeighbourListKernel, "_collisionHashGrid", _collisionHashGridBuffer);
+        computeShader.SetBuffer(buildCollisionNeighbourListKernel, "_collisionHashGridTracker", _collisionHashGridTrackerBuffer);
+        computeShader.SetBuffer(buildCollisionNeighbourListKernel, "_neighbourCollisionList", _neighbourCollisionListBuffer);
+        computeShader.SetBuffer(buildCollisionNeighbourListKernel, "_neighbourCollisionTracker", _neighbourCollisionTrackerBuffer);
 
         computeShader.SetBuffer(computeForcesKernel, "_neighbourTracker", _neighbourTrackerBuffer);
         computeShader.SetBuffer(computeForcesKernel, "_neighbourList", _neighbourListBuffer);
@@ -284,6 +347,11 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader.SetBuffer(computeForcesKernel, "_pressures", _pressuresBuffer);
         computeShader.SetBuffer(computeForcesKernel, "_velocities", _velocitiesBuffer);
         computeShader.SetBuffer(computeForcesKernel, "_forces", _forcesBuffer);
+
+        computeShader.SetBuffer(computeCollisionsKernel, "_tris", _trisBuffer);
+        computeShader.SetBuffer(computeCollisionsKernel, "_velocities", _velocitiesBuffer);
+        computeShader.SetBuffer(computeCollisionsKernel, "_neighbourCollisionList", _neighbourCollisionListBuffer);
+        computeShader.SetBuffer(computeCollisionsKernel, "_neighbourCollisionTracker", _neighbourCollisionTrackerBuffer);
 
         computeShader.SetBuffer(integrateKernel, "_particles", _particlesBuffer);
         computeShader.SetBuffer(integrateKernel, "_densities", _densitiesBuffer);
@@ -295,14 +363,38 @@ public class GPU_Particle_Manager : MonoBehaviour
 
     #endregion
 
+    private void Start()
+    {
+        computeShader.Dispatch(recalculateCollisionHashGridKernel, _tris.Length, 1, 1);
+        /*_collisionHashGridBuffer.GetData(_collisionHashGrid);
+        for(int i = 0;i < _collisionHashGrid.Length;i++)
+        {
+            if (_collisionHashGrid[i] != 0)
+            {
+                Debug.Log(i + " " + _collisionHashGrid[i]);
+            }
+        }*/
+    }
+
     void Update()
     {
         computeShader.SetFloat("dt", Time.deltaTime);
         computeShader.Dispatch(clearHashGridKernel, dimensions * dimensions * dimensions / 100, 1, 1);
         computeShader.Dispatch(recalculateHashGridKernel, numberOfParticles / 100, 1, 1);
         computeShader.Dispatch(buildNeighbourListKernel, numberOfParticles / 100, 1, 1);
-        computeShader.Dispatch(computeDensityPressureKernel, numberOfParticles / 100, 1, 1);
+        computeShader.Dispatch(buildCollisionNeighbourListKernel, numberOfParticles / 100, 1, 1);
+        int[] kk = new int[numberOfParticles];
+
+        /*_neighbourCollisionTrackerBuffer.GetData(kk);
+        for (int i = 0; i < kk.Length; i++)
+        {
+            if (kk[i] != 0)
+            {
+                Debug.Log(i + " " + kk[i]);
+            }
+        }*/
         computeShader.Dispatch(computeForcesKernel, numberOfParticles / 100, 1, 1);
+        computeShader.Dispatch(computeCollisionsKernel, numberOfParticles / 100, 1, 1);
         computeShader.Dispatch(integrateKernel, numberOfParticles / 100, 1, 1);
         material.SetBuffer(ParticlesBufferProperty, _particlesBuffer);
         material.SetBuffer(ColorsBufferProperty, _colorsBuffer);
@@ -319,12 +411,17 @@ public class GPU_Particle_Manager : MonoBehaviour
     private void ReleaseBuffers()
     {
         _particlesBuffer.Dispose();
+        _trisBuffer.Dispose();
         _colorsBuffer.Dispose();
         _argsBuffer.Dispose();
         _neighbourListBuffer.Dispose();
         _neighbourTrackerBuffer.Dispose();
+        _neighbourCollisionListBuffer.Dispose();
+        _neighbourCollisionTrackerBuffer.Dispose();
         _hashGridBuffer.Dispose();
         _hashGridTrackerBuffer.Dispose();
+        _collisionHashGridBuffer.Dispose();
+        _collisionHashGridTrackerBuffer.Dispose();
         _densitiesBuffer.Dispose();
         _pressuresBuffer.Dispose();
         _velocitiesBuffer.Dispose();
@@ -334,7 +431,7 @@ public class GPU_Particle_Manager : MonoBehaviour
     private void OnDrawGizmos()
     {
         Gizmos.color = Color.red;
-        Gizmos.DrawWireCube(new Vector3(dimensions / 2, dimensions / 2, dimensions / 2), Vector3.one * dimensions);
+        Gizmos.DrawWireCube(new Vector3(dimensions / 2f, dimensions / 2f, dimensions / 2f), Vector3.one * dimensions);
     }
 
     private void OnValidate()
