@@ -137,7 +137,14 @@ public class GPU_Particle_Manager : MonoBehaviour
     private void Awake()
     {
         mainCamera = Camera.main;
-        mainCamera.transform.position = new Vector3(dimensions / 2, dimensions/1.8f, -dimensions/4f);
+        EventsPool.StartExperienceEvent.AddListener(StartExperience);
+        EventsPool.UpdateUIEvent.AddListener(
+            () => mainCamera.transform.position = new Vector3(dimensions / 2, dimensions / 1.8f, -dimensions / 4f));
+    }
+
+
+    void StartExperience()
+    {
         radius2 = radius * radius;
         radius3 = radius2 * radius;
         radius4 = radius3 * radius;
@@ -147,16 +154,16 @@ public class GPU_Particle_Manager : MonoBehaviour
         k1 = (315 * mass) / (64 * Mathf.PI * Mathf.Pow(radius, 9));
         k2 = -(45 * mass) / (Mathf.PI * Mathf.Pow(radius, 6));
         k3 = (45 * viscosityCoefficient * mass) / (Mathf.PI * Mathf.Pow(radius, 6));
+        timer = 0;
+        TsunamiWidth = dimensions / 2.0f;
+        VolcanoRadius = dimensions / 2.0f;
 
         InitTris();
         RespawnParticles();
         FindKernels();
         InitComputeShader();
         InitComputeBuffers();
-
-        timer = 0;
-        TsunamiWidth = dimensions / 2.0f;
-        VolcanoRadius = dimensions / 2.0f; 
+        computeShader.Dispatch(recalculateCollisionHashGridKernel, _tris.Length, 1, 1);
     }
 
     #region Initialisation
@@ -409,7 +416,7 @@ public class GPU_Particle_Manager : MonoBehaviour
         if (indicator != null )
         {
             float distance2;
-            Ray ray2 = Camera.main.ScreenPointToRay(Input.mousePosition);
+            Ray ray2 = mainCamera.ScreenPointToRay(Input.mousePosition);
             if (plane.Raycast(ray2, out distance2))
             {
                 worldPosition = ray2.GetPoint(distance2);
@@ -453,7 +460,7 @@ public class GPU_Particle_Manager : MonoBehaviour
     private void EnableModeOnClick()
     {
         float distance;
-        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
         if (plane.Raycast(ray, out distance))
         {
             worldPosition = ray.GetPoint(distance);
@@ -482,13 +489,14 @@ public class GPU_Particle_Manager : MonoBehaviour
 
     private void Start()
     {
-        computeShader.Dispatch(recalculateCollisionHashGridKernel, _tris.Length, 1, 1);
+        EventsPool.UpdateUIEvent.Invoke();
     }
     Plane plane = new Plane(Vector3.up, 0);
     Vector3 worldPosition;
     void Update()
     {
- 
+        if (_particlesBuffer == null)
+            return;
         if (Input.GetMouseButtonDown(0))
         {
             EnableModeOnClick();
