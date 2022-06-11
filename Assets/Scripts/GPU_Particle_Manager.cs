@@ -435,7 +435,7 @@ public class GPU_Particle_Manager : MonoBehaviour
                 if (!indicatorIsRendered)
                 {
                     indicatorIsRendered = true;
-                    indicator.transform.localScale = new Vector3(showTsunamiIndicator ? dimensions : scale, 0.1f , scale);
+                    indicator.transform.localScale = new Vector3(showTsunamiIndicator ? dimensions / 2.0f : scale, 0.1f , scale);
                     indicator.SetActive(true);
                 }
                 indicator.transform.position = worldPosition;
@@ -480,8 +480,7 @@ public class GPU_Particle_Manager : MonoBehaviour
                 VolcanoMode = true;
                 timer = 0;
                 computeShader.SetFloats("volcanoOrigin", new float[] { worldPosition.x, 0, worldPosition.z });
-                Debug.LogError(VolcanoRadius);
-                computeShader.SetFloat("volcanoMode", VolcanoRadius);
+                computeShader.SetFloat("volcanoRadius", VolcanoRadius);
                 computeShader.SetBool("VolcanoMode", VolcanoMode);
                 volcanoIndicator.SetActive(false);
                 showVolcanoIndicator = false;

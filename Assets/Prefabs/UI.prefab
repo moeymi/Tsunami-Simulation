@@ -3605,7 +3605,6 @@ GameObject:
   - component: {fileID: 2985724223157569859}
   - component: {fileID: 5090619578661635206}
   - component: {fileID: 5339305769006518879}
-  - component: {fileID: 3927345064003431269}
   m_Layer: 5
   m_Name: InPanel (1)
   m_TagString: Untagged
@@ -3699,19 +3698,6 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
---- !u!114 &3927345064003431269
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3149676462601348788}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9f1ad3fea6f345c46a7db969f9a3535a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  manager: {fileID: 0}
 --- !u!1 &3191179120249663849
 GameObject:
   m_ObjectHideFlags: 0
@@ -10795,7 +10781,6 @@ GameObject:
   - component: {fileID: 3811751964211084218}
   - component: {fileID: 7691746719795252582}
   - component: {fileID: 1391559563109570292}
-  - component: {fileID: 6649052218277682192}
   m_Layer: 5
   m_Name: InPanel (2)
   m_TagString: Untagged
@@ -10889,19 +10874,6 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
---- !u!114 &6649052218277682192
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7464678264850352970}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9f1ad3fea6f345c46a7db969f9a3535a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  manager: {fileID: 0}
 --- !u!1 &7617322006054531738
 GameObject:
   m_ObjectHideFlags: 0

@@ -74,6 +74,7 @@ public class UISliders : MonoBehaviour
             viscositySlider.onValueChanged.AddListener(updateUI);
             dampingSlider.onValueChanged.AddListener(updateUI);
             particlesNumSlider.onValueChanged.AddListener(updateUI);
+            dimsSlider.onValueChanged.AddListener(updateUI);
         } catch { }
         try
         {
