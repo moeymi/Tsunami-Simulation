@@ -44,14 +44,14 @@ public class GPU_Particle_Manager : MonoBehaviour
     [Range(0.1f, 4f)]
     public float colorModifier = 0.8f;
 
-    [Range(0.001f, 0.4f)]
-    public float noiseRate = 0.005f;
-
 
     [Header("Debug information")]
     public float averageFPS;
 
     private Vector3[] _particles;
+    private Vector3[] _prevParticles;
+    private Vector3[] _duplicateParticles;
+
     private Tri[] _tris;
     private Color[] _colors;
 
@@ -76,6 +76,9 @@ public class GPU_Particle_Manager : MonoBehaviour
     float timer; 
 
     private ComputeBuffer _particlesBuffer;
+    private ComputeBuffer _prevParticlesBuffer;
+    private ComputeBuffer _duplicateParticlesBuffer;
+
     private ComputeBuffer _trisBuffer;
     private ComputeBuffer _argsBuffer;
     private ComputeBuffer _neighbourListBuffer;
@@ -144,7 +147,9 @@ public class GPU_Particle_Manager : MonoBehaviour
     private void RespawnParticles()
     {
         _particles = new Vector3[numberOfParticles];
-        _colors = new Color[numberOfParticles];
+        _prevParticles = new Vector3[numberOfParticles];
+        _duplicateParticles = new Vector3[numberOfParticles * 3];
+        _colors = new Color[numberOfParticles * 3];
         _densities = new float[numberOfParticles];
         _pressures = new float[numberOfParticles];
         _velocities = new Vector3[numberOfParticles];
@@ -154,7 +159,7 @@ public class GPU_Particle_Manager : MonoBehaviour
 
         int counter = 0;
         float x_start_offset = 0 + radius;
-        float y_start_offset = 0 + radius +0.01f;
+        float y_start_offset = dimensions/2 + radius +0.01f;
         float z_start_offset = 0 + radius;
         float x_end_offset = dimensions - radius;
         float y_end_offset = dimensions - radius;
@@ -176,7 +181,7 @@ public class GPU_Particle_Manager : MonoBehaviour
                         _densities[counter] = -1f;
                         _pressures[counter] = 0.0f;
                         _forces[counter] = Vector3.zero;
-                        _velocities[counter] = Vector3.down * 50;
+                        _velocities[counter] = new Vector3(-1, 0, 0);
 
                         if (++counter == numberOfParticles)
                         {
@@ -224,7 +229,6 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader.SetVector("baseColor", baseColor);
         computeShader.SetVector("surfaceColor", surfaceColor);
         computeShader.SetFloat("colorModifier", colorModifier);
-        computeShader.SetFloat("noiseRate", noiseRate);
         computeShader.SetBool ("TsunamiMode", TsunamiMode);
         computeShader.SetBool("VolcanoMode", VolcanoMode);
     }
@@ -234,6 +238,34 @@ public class GPU_Particle_Manager : MonoBehaviour
     int[] triangles;
     Vector3[] normals;
     Matrix4x4 localToWorld;
+    bool PointInTriangle(Tri tri, Vector3 p)
+    {
+        Vector3 c = Vector3.Cross(tri.p2 - tri.p0, tri.p2 - tri.p1);
+        float triArea = (c).magnitude / 2;
+        Vector3 d1;
+        Vector3 d2;
+        float sumArea = 0;
+        d1 = p - tri.p0;
+        d2 = p - tri.p1;
+        c = Vector3.Cross(d1, d2);
+        sumArea += (c).magnitude / 2;
+
+        d1 = p - tri.p1;
+        d2 = p - tri.p2;
+        c = Vector3.Cross(d1, d2);
+        sumArea += (c).magnitude / 2;
+
+        d1 = p - tri.p0;
+        d2 = p - tri.p2;
+        c = Vector3.Cross(d1, d2);
+        sumArea += (c).magnitude / 2;
+
+        if (Mathf.Abs(sumArea - triArea) < 0.5f)
+        {
+            return true;
+        }
+        return false;
+    }
     private void InitTris()
     {
         MeshFilter[] colliders = collidersParent.GetComponentsInChildren<MeshFilter>();
@@ -250,13 +282,15 @@ public class GPU_Particle_Manager : MonoBehaviour
                 Vector3 p0 = localToWorld.MultiplyPoint3x4(vertices[triangles[j]]);
                 Vector3 p1 = localToWorld.MultiplyPoint3x4(vertices[triangles[j + 1]]);
                 Vector3 p2 = localToWorld.MultiplyPoint3x4(vertices[triangles[j + 2]]);
-                trisList.Add(new Tri
+                Vector3 p3 = (p2 + p1 + p0)/3;
+                Tri tri = new Tri
                 {
                     normal = colliders[i].transform.rotation * normals[triangles[j]],
                     p0 = p0,
                     p1 = p1,
                     p2 = p2
-                });
+                };
+                trisList.Add(tri);
             }
         }
         _tris = trisList.ToArray();
@@ -266,7 +300,7 @@ public class GPU_Particle_Manager : MonoBehaviour
     {
         uint[] args = {
             particleMesh.GetIndexCount(0),
-            (uint) numberOfParticles,
+            (uint) numberOfParticles * 3,
             particleMesh.GetIndexStart(0),
             particleMesh.GetBaseVertex(0),
             0
@@ -277,10 +311,16 @@ public class GPU_Particle_Manager : MonoBehaviour
         _particlesBuffer = new ComputeBuffer(numberOfParticles, sizeof(float) * 3);
         _particlesBuffer.SetData(_particles);
 
+        _prevParticlesBuffer = new ComputeBuffer(numberOfParticles, sizeof(float) * 3);
+        _prevParticlesBuffer.SetData(_prevParticles);
+
+        _duplicateParticlesBuffer = new ComputeBuffer(numberOfParticles * 3, sizeof(float) * 3);
+        _duplicateParticlesBuffer.SetData(_duplicateParticles);
+
         _trisBuffer = new ComputeBuffer(_tris.Length, sizeof(float) * 3 * 4);
         _trisBuffer.SetData(_tris);
 
-        _colorsBuffer = new ComputeBuffer(numberOfParticles, sizeof(float) * 4);
+        _colorsBuffer = new ComputeBuffer(numberOfParticles * 3, sizeof(float) * 4);
         _colorsBuffer.SetData(_colors);
 
         _neighbourList = new int[numberOfParticles * maximumParticlesPerCell * 8];
@@ -340,6 +380,7 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader.SetBuffer(buildNeighbourListKernel, "_neighbourTracker", _neighbourTrackerBuffer);
 
         computeShader.SetBuffer(buildCollisionNeighbourListKernel, "_particles", _particlesBuffer);
+        computeShader.SetBuffer(buildCollisionNeighbourListKernel, "_prevParticles", _prevParticlesBuffer);
         computeShader.SetBuffer(buildCollisionNeighbourListKernel, "_tris", _trisBuffer);
         computeShader.SetBuffer(buildCollisionNeighbourListKernel, "_collisionHashGrid", _collisionHashGridBuffer);
         computeShader.SetBuffer(buildCollisionNeighbourListKernel, "_collisionHashGridTracker", _collisionHashGridTrackerBuffer);
@@ -354,13 +395,17 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader.SetBuffer(computeForcesKernel, "_velocities", _velocitiesBuffer);
         computeShader.SetBuffer(computeForcesKernel, "_forces", _forcesBuffer);
 
+        computeShader.SetBuffer(computeCollisionsKernel, "_forces", _forcesBuffer);
         computeShader.SetBuffer(computeCollisionsKernel, "_tris", _trisBuffer);
+        computeShader.SetBuffer(computeCollisionsKernel, "_densities", _densitiesBuffer);
         computeShader.SetBuffer(computeCollisionsKernel, "_particles", _particlesBuffer);
         computeShader.SetBuffer(computeCollisionsKernel, "_velocities", _velocitiesBuffer);
         computeShader.SetBuffer(computeCollisionsKernel, "_neighbourCollisionList", _neighbourCollisionListBuffer);
         computeShader.SetBuffer(computeCollisionsKernel, "_neighbourCollisionTracker", _neighbourCollisionTrackerBuffer);
 
         computeShader.SetBuffer(integrateKernel, "_particles", _particlesBuffer);
+        computeShader.SetBuffer(integrateKernel, "_prevParticles", _prevParticlesBuffer);
+        computeShader.SetBuffer(integrateKernel, "_duplicateParticles", _duplicateParticlesBuffer);
         computeShader.SetBuffer(integrateKernel, "_densities", _densitiesBuffer);
         computeShader.SetBuffer(integrateKernel, "_colors", _colorsBuffer);
         computeShader.SetBuffer(integrateKernel, "_forces", _forcesBuffer);
@@ -380,23 +425,22 @@ public class GPU_Particle_Manager : MonoBehaviour
         if (VolcanoMode)
         {
             timer += Time.deltaTime;
-            if (timer > 0.5f)
+            if (timer > 0.3f)
             {
                 timer = 0;
                 VolcanoMode = false;
                 computeShader.SetBool("VolcanoMode", VolcanoMode);
             }
         }
-        computeShader.SetFloat("dt", Time.deltaTime);
+        computeShader.SetFloat("dt", Mathf.Min(0.06f, Time.deltaTime));
         computeShader.Dispatch(clearHashGridKernel, dimensions * dimensions * dimensions / 100, 1, 1);
         computeShader.Dispatch(recalculateHashGridKernel, numberOfParticles / 100, 1, 1);
         computeShader.Dispatch(buildNeighbourListKernel, numberOfParticles / 100, 1, 1);
         computeShader.Dispatch(buildCollisionNeighbourListKernel, numberOfParticles / 100, 1, 1);
-        int[] kk = new int[numberOfParticles];
         computeShader.Dispatch(computeForcesKernel, numberOfParticles / 100, 1, 1);
         computeShader.Dispatch(computeCollisionsKernel, numberOfParticles / 100, 1, 1);
         computeShader.Dispatch(integrateKernel, numberOfParticles / 100, 1, 1);
-        material.SetBuffer(ParticlesBufferProperty, _particlesBuffer);
+        material.SetBuffer(ParticlesBufferProperty, _duplicateParticlesBuffer);
         material.SetBuffer(ColorsBufferProperty, _colorsBuffer);
         Graphics.DrawMeshInstancedIndirect(particleMesh, 0, material, new Bounds(Vector3.zero, new Vector3(100.0f, 100.0f, 100.0f)), _argsBuffer, castShadows: 0);
 
@@ -411,6 +455,8 @@ public class GPU_Particle_Manager : MonoBehaviour
     private void ReleaseBuffers()
     {
         _particlesBuffer.Dispose();
+        _prevParticlesBuffer.Dispose();
+        _duplicateParticlesBuffer.Dispose();
         _trisBuffer.Dispose();
         _colorsBuffer.Dispose();
         _argsBuffer.Dispose();
@@ -439,7 +485,6 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader?.SetVector("baseColor", baseColor);
         computeShader?.SetVector("surfaceColor", surfaceColor);
         computeShader?.SetFloat("colorModifier", colorModifier);
-        computeShader?.SetFloat("noiseRate", noiseRate);
         computeShader?.SetBool("TsunamiMode", TsunamiMode);
         computeShader?.SetBool("VolcanoMode", VolcanoMode);
     }

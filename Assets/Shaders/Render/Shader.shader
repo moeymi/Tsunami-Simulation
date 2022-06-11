@@ -45,17 +45,25 @@ Shader "Example/URPUnlitShaderNormal"
                 uint instanceID : SV_InstanceID;
             };
 
+            float rand(float n)
+            {
+                return frac(sin(n) * 43758.5453123);
+            }
+
             Varyings vert(Attributes IN)
             {
                 float4 data = float4(_particlesBuffer[IN.instanceID], 0);
 
                 float3 localPosition = IN.position.xyz;
-                localPosition *= _Size;
+                localPosition *= _Size/1.5;
 
                 float3 worldPosition = localPosition + data;
                 float4 finalPos = mul(UNITY_MATRIX_VP, float4(worldPosition, 1.0f));
 
+                float k = float(IN.instanceID);
+                float n = rand(k);
                 float3 worldNormal = IN.normal;
+
 
                 Varyings OUT;
                 OUT.position = finalPos;

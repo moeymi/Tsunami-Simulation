@@ -100,6 +100,8 @@ float3 ProjectPointOnPlane(float3 planeNormal, float3 planePoint, float3 p) {
 }
 
 RWStructuredBuffer<float3> _particles;
+RWStructuredBuffer<float3> _prevParticles;
+RWStructuredBuffer<float3> _duplicateParticles;
 RWStructuredBuffer<Tri> _tris;
 RWStructuredBuffer<float4> _colors;
 RWStructuredBuffer<int> _neighbourList;
@@ -135,7 +137,6 @@ float k1;
 float k2;
 float k3;
 float colorModifier;
-float noiseRate;
 
 float timer =0 ;
 
@@ -172,15 +173,16 @@ void RecalculateCollisionHashGrid(uint3 id : SV_DispatchThreadID)
     float distance3 = length(tri.p0 - tri.p2);
     if (distance1 > distance2 && distance1 > distance3)
     {
-        int t1 = (int)(distance2 / CellSize);
-        int t2 = (int)(distance3 / CellSize);
+        int t1 = ceil(distance2 / (CellSize / 2));
+        int t2 = ceil(distance3 / (CellSize / 2));
         for (int h = 0; h <= t1; h++)
         {
             for (int l = 0; l <= t2; l++)
             {
-                float3 potentialCell = tri.p2 + (normalize(tri.p1 - tri.p2) * CellSize * h) + (normalize(tri.p0 - tri.p2) * CellSize * l);
-                if (potentialCell.x < 0 || potentialCell.y < 0 || potentialCell.z < 0)
-                    continue;
+                float3 potentialCell = tri.p2 + (normalize(tri.p1 - tri.p2) * (CellSize/2) * h) + (normalize(tri.p0 - tri.p2) * (CellSize / 2) * l);
+                if (potentialCell.x < 0) potentialCell.x = 0;
+                if (potentialCell.y < 0) potentialCell.y = 0;
+                if (potentialCell.z < 0) potentialCell.z = 0;
                 if (PointInTriangle(tri, potentialCell)) {
                     int prevCount = 0;
                     const int cellHash = Hash(GetCell(potentialCell));
@@ -192,16 +194,16 @@ void RecalculateCollisionHashGrid(uint3 id : SV_DispatchThreadID)
     }
     else if (distance2 > distance1 && distance2 > distance3)
     {
-        int t1 = (int)(distance1 / CellSize);
-        int t2 = (int)(distance3 / CellSize);
+        int t1 = ceil(distance1 / (CellSize / 2));
+        int t2 = ceil(distance3 / (CellSize / 2));
         for (int h = 0; h <= t1; h++)
         {
             for (int l = 0; l <= t2; l++)
             {
-                float3 potentialCell = tri.p0 + (normalize(tri.p2 - tri.p0) * CellSize * l) + (normalize(tri.p1 - tri.p0) * CellSize * h);
-
-                if (potentialCell.x < 0 || potentialCell.y < 0 || potentialCell.z < 0)
-                    continue;
+                float3 potentialCell = tri.p0 + (normalize(tri.p2 - tri.p0) * (CellSize / 2) * l) + (normalize(tri.p1 - tri.p0) * (CellSize / 2) * h);
+                if (potentialCell.x < 0) potentialCell.x = 0;
+                if (potentialCell.y < 0) potentialCell.y = 0;
+                if (potentialCell.z < 0) potentialCell.z = 0;
                 if (PointInTriangle(tri, potentialCell)) {
                     int prevCount = 0;
                     const int cellHash = Hash(GetCell(potentialCell));
@@ -213,16 +215,17 @@ void RecalculateCollisionHashGrid(uint3 id : SV_DispatchThreadID)
     }
     else
     {
-        int t1 = (int)(distance1 / CellSize);
-        int t2 = (int)(distance2 / CellSize);
+        int t1 = ceil(distance1 / (CellSize / 2));
+        int t2 = ceil(distance2 / (CellSize / 2));
         int h = 0, l = 0;
         for (h = 0; h <= t1; h++)
         {
             for (l = 0; l <= t2; l++)
             {
-                float3 potentialCell = tri.p1 + (normalize(tri.p2 - tri.p1) * CellSize * l) + (normalize(tri.p0 - tri.p1) * CellSize * h);
-                if (potentialCell.x < 0 || potentialCell.y < 0 || potentialCell.z < 0)
-                    continue;
+                float3 potentialCell = tri.p1 + (normalize(tri.p2 - tri.p1) * (CellSize / 2) * l) + (normalize(tri.p0 - tri.p1) * (CellSize / 2) * h);
+                if (potentialCell.x < 0) potentialCell.x = 0;
+                if (potentialCell.y < 0) potentialCell.y = 0;
+                if (potentialCell.z < 0) potentialCell.z = 0;
                 if (PointInTriangle(tri, potentialCell)) {
                     int prevCount = 0;
                     const int cellHash = Hash(GetCell(potentialCell));
@@ -329,6 +332,27 @@ void BuildNeighbourList(uint3 id : SV_DispatchThreadID)
 void BuildCollisionNeighbourList(uint3 id : SV_DispatchThreadID)
 {
     _neighbourCollisionTracker[id.x] = 0;
+    float3 dist = _particles[id.x] - _prevParticles[id.x];
+    for (float i = 0; i < length(dist) / ((float)CellSize / 2); i++) {
+        float3 pos = _prevParticles[id.x] + i * normalize(dist);
+        const int3 cell = GetCell(pos);
+        int cells[8];
+        GetNearbyKeys(cell, pos, cells);
+
+        for (uint j = 0; j < 8; j++)
+        {
+            if (cells[j] == -1) continue;
+            const uint numberOfTrianglesInCell = _collisionHashGridTracker[cells[j]];
+            for (uint index = 0; index < numberOfTrianglesInCell; index++)
+            {
+                const uint potentialNeighbour = _collisionHashGrid[cells[j] * maximumParticlesPerCell + index];
+                float3 closestPoint = ProjectPointOnPlane(_tris[potentialNeighbour].normal, _tris[potentialNeighbour].p0, pos);
+                if (length(closestPoint - pos) > radius / 2 || !PointInTriangle(_tris[potentialNeighbour], closestPoint))
+                    continue;
+                _neighbourCollisionList[id.x * maximumParticlesPerCell * 8 + _neighbourCollisionTracker[id.x]++] = potentialNeighbour;
+            }
+        }
+    }
     const int3 cell = GetCell(_particles[id.x]);
     int cells[8];
     GetNearbyKeys(cell, _particles[id.x], cells);
@@ -341,7 +365,7 @@ void BuildCollisionNeighbourList(uint3 id : SV_DispatchThreadID)
         {
             const uint potentialNeighbour = _collisionHashGrid[cells[j] * maximumParticlesPerCell + index];
             float3 closestPoint = ProjectPointOnPlane(_tris[potentialNeighbour].normal, _tris[potentialNeighbour].p0, _particles[id.x]);
-            if (length(closestPoint - _particles[id.x]) > radius || !PointInTriangle(_tris[potentialNeighbour], closestPoint))
+            if (length(closestPoint - _particles[id.x]) > radius / 2 || !PointInTriangle(_tris[potentialNeighbour], closestPoint))
                 continue;
             _neighbourCollisionList[id.x * maximumParticlesPerCell * 8 + _neighbourCollisionTracker[id.x]++] = potentialNeighbour;
         }
@@ -378,7 +402,7 @@ float3 VolcanoForces(float3 volcanoOrigin, float3 particlePosition, float volcan
     if (length(difference) > volcanoRadius)
         return float3(0,0,0);
 
-    float3 volcanoForce = (normalize(difference)+ float3(0, 1, 0)) * 100 * clamp((1 - length(difference) / volcanoRadius), 0, 1);
+    float3 volcanoForce = (normalize(difference)+ float3(0, 1, 0)) * 150 * clamp((1 - length(difference) / volcanoRadius), 0, 1);
 
     return volcanoForce;
 }
@@ -494,6 +518,9 @@ float Hash_From2D(float Vec, float time)
 
 [numthreads(100, 1, 1)]
 void ComputeCollisions(uint3 id : SV_DispatchThreadID) {
+
+    float3 acceleration = _forces[id.x] / _densities[id.x];
+    _velocities[id.x] += acceleration * dt;
     for (int j = 0; j < _neighbourCollisionTracker[id.x]; j++)
     {
         const int neighbourIndex = _neighbourCollisionList[id.x * maximumParticlesPerCell * 8 + j];
@@ -504,25 +531,22 @@ void ComputeCollisions(uint3 id : SV_DispatchThreadID) {
         float3 closestPoint = ProjectPointOnPlane(_tris[neighbourIndex].normal, _tris[neighbourIndex].p0, _particles[id.x]);
         float velocityTowardsCollider = dot(_velocities[id.x], normalize(closestPoint - _particles[id.x]));
 
-        if (velocityTowardsCollider > 1) collisionDamping *= 0.5f;
+        if (velocityTowardsCollider > 0.5f) collisionDamping *= 0.5f;
 
         float3 newVel = reflect(_velocities[id.x], _tris[neighbourIndex].normal);
-        _velocities[id.x] = newVel * collisionDamping;
+        _velocities[id.x] = newVel;
     }
 }
 
 [numthreads(100,1,1)]
 void Integrate(uint3 id : SV_DispatchThreadID)
 {
-    float3 acceleration = _forces[id.x] / _densities[id.x];
-    _velocities[id.x] += acceleration * dt;
-
     float3 newPos = _particles[id.x];
     newPos += dt * _velocities[id.x];
 
     if (newPos.x - epsilon < 0.0f)
     {
-        if (_velocities[id.x].x < 1)
+        if (_velocities[id.x].x < -1.5)
             _velocities[id.x].x *= damping;
         else
             _velocities[id.x].x *= -1;
@@ -530,16 +554,15 @@ void Integrate(uint3 id : SV_DispatchThreadID)
     }
     else if(newPos.x + epsilon > Dimensions - 1.f)
     {
-        if (_velocities[id.x].x > 1)
+        if (_velocities[id.x].x > 1.5)
             _velocities[id.x].x *= damping;
         else
             _velocities[id.x].x *= -1;
         newPos.x = Dimensions - 1 - epsilon;
     }
-            
     if (newPos.y - epsilon < 0.0f)
     {
-        if (_velocities[id.x].y < 1)
+        if (_velocities[id.x].y < -1.5)
             _velocities[id.x].y *= damping;
         else
             _velocities[id.x].y *= -1;
@@ -547,7 +570,7 @@ void Integrate(uint3 id : SV_DispatchThreadID)
     }
     else if(newPos.y + epsilon > Dimensions - 1.f)
     {
-        if (_velocities[id.x].y > 1)
+        if (_velocities[id.x].y > 1.5)
             _velocities[id.x].y *= damping;
         else
             _velocities[id.x].y *= -1;
@@ -556,7 +579,7 @@ void Integrate(uint3 id : SV_DispatchThreadID)
             
     if (newPos.z - epsilon < 0.0f)
     {
-        if (_velocities[id.x].z < 1)
+        if (_velocities[id.x].z < -1.5)
             _velocities[id.x].z *= damping;
         else
             _velocities[id.x].z *= -1;
@@ -564,20 +587,27 @@ void Integrate(uint3 id : SV_DispatchThreadID)
     }
     else if(_particles[id.x].z + epsilon > Dimensions - 1.f) 
     {
-        if(_velocities[id.x].z > 1)
+        if(_velocities[id.x].z > 1.5)
             _velocities[id.x].z *= damping;
         else
             _velocities[id.x].z *= -1;
         newPos.z = Dimensions - 1 - epsilon;
     }
+
+    _prevParticles[id.x] = _particles[id.x];
+
     float colorEstimate = pow(abs(newPos.y / Dimensions), colorModifier);
-    float perlinNoise = Hash_From2D(newPos, _Time);
-    float customNoise = (abs(perlinNoise)+1) * noiseRate;
-    float4 newColor = lerp(baseColor, surfaceColor, colorEstimate + customNoise);
+    float4 newColor = lerp(baseColor, surfaceColor, colorEstimate);
     float4 oldColor = _colors[id.x];
-    if (oldColor.x != 0)
-        _colors[id.x] = lerp(oldColor, newColor, 0.2f);
-    else
-        _colors[id.x] = newColor;
+    _colors[id.x * 3] = newColor;
+    _colors[id.x * 3 + 1] = newColor;
+    _colors[id.x * 3 + 2] = newColor;
     _particles[id.x] = newPos;
+    float xrand = sin(Hash_From2D(id.x, _Time.x)) * 0.3;
+    float yrand = sin(Hash_From2D(id.x, _Time.y)) * 0.3;
+    float y2rand = cos(Hash_From2D(id.x, _Time.y)) * 0.3;
+    float zrand = cos(Hash_From2D(id.x, _Time.z)) * 0.3;
+    _duplicateParticles[id.x * 3] = newPos;
+    _duplicateParticles[id.x * 3 + 1] = newPos + float3(xrand, yrand, zrand);
+    _duplicateParticles[id.x * 3 + 2] = newPos + float3(-xrand, y2rand, -zrand);
 }
