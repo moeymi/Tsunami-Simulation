@@ -15,7 +15,9 @@ bool TsunamiMode;
 bool VolcanoMode;
 
 float3 volcanoOrigin;
+float  volcanoRadius; 
 float3 tsunamiOrigin;
+float  tsunamiWidth;
 
 struct Tri {
     float3 p0;
@@ -426,7 +428,7 @@ float ViscosityLaplacian(float r, float h)
     return coef * (h - r);
 }
 
-float3 VolcanoForces(float3 particlePosition, float volcanoRadius)
+float3 VolcanoForces(float3 particlePosition)
 {
 
     float3 difference = particlePosition - volcanoOrigin;
@@ -439,7 +441,7 @@ float3 VolcanoForces(float3 particlePosition, float volcanoRadius)
     return volcanoForce;
 }
 
-float3 TsunamiForces(float3 particlePosition , float tsunamiWidth)
+float3 TsunamiForces(float3 particlePosition )
 {
     float3 tsunamiForce = float3(-20, 40, 0);
 
@@ -494,10 +496,10 @@ void ComputeForces(uint3 id : SV_DispatchThreadID)
     // Gravity
     _forces[id.x] += g;
     if (TsunamiMode) {
-        _forces[id.x] += TsunamiForces( _particles[id.x], Dimensions / 2);
+        _forces[id.x] += TsunamiForces( _particles[id.x]);
     }
     if (VolcanoMode) {
-        _forces[id.x] += VolcanoForces(_particles[id.x] , Dimensions / 2);
+        _forces[id.x] += VolcanoForces(_particles[id.x]);
     }
 }
 
