@@ -1449,6 +1449,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9f1ad3fea6f345c46a7db969f9a3535a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  manager: {fileID: 0}
 --- !u!1 &1678285400
 GameObject:
   m_ObjectHideFlags: 0
@@ -1820,6 +1821,18 @@ MonoBehaviour:
           m_BoolArgument: 1
         m_CallState: 2
       - m_Target: {fileID: 6956958375037437480}
+        m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
+        m_MethodName: SetActive
+        m_Mode: 6
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 1
+        m_CallState: 2
+      - m_Target: {fileID: 7464678264850352970}
         m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
         m_MethodName: SetActive
         m_Mode: 6
@@ -3619,8 +3632,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -250, y: -350}
-  m_SizeDelta: {x: 400, y: 600}
+  m_AnchoredPosition: {x: -250, y: -240}
+  m_SizeDelta: {x: 400, y: 350}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &2985724223157569859
 CanvasRenderer:
@@ -3698,6 +3711,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9f1ad3fea6f345c46a7db969f9a3535a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  manager: {fileID: 0}
 --- !u!1 &3191179120249663849
 GameObject:
   m_ObjectHideFlags: 0
@@ -3710,6 +3724,7 @@ GameObject:
   - component: {fileID: 3780896657563343397}
   - component: {fileID: 2906726549329648433}
   - component: {fileID: 1223225472033419869}
+  - component: {fileID: 885152641}
   m_Layer: 5
   m_Name: GroundBTN
   m_TagString: Untagged
@@ -3733,9 +3748,9 @@ RectTransform:
   m_Father: {fileID: 827929874926561913}
   m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 200, y: -440}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: -252.5}
   m_SizeDelta: {x: 275, y: 90}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3780896657563343397
@@ -3819,7 +3834,44 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 2906726549329648433}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 885152641}
+        m_TargetAssemblyTypeName: UIButtons, Assembly-CSharp
+        m_MethodName: StartTsunamiMode
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+      - m_Target: {fileID: 4790339655226382049}
+        m_TargetAssemblyTypeName: Show_Hide_UI, Assembly-CSharp
+        m_MethodName: show_hide
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+--- !u!114 &885152641
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3191179120249663849}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9f1ad3fea6f345c46a7db969f9a3535a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  manager: {fileID: 0}
 --- !u!1 &3191901996698850422
 GameObject:
   m_ObjectHideFlags: 0
@@ -4803,6 +4855,7 @@ GameObject:
   - component: {fileID: 4595696145797232841}
   - component: {fileID: 1662786610693600216}
   - component: {fileID: 6188453379152249226}
+  - component: {fileID: 294767368}
   m_Layer: 5
   m_Name: VolcBTN
   m_TagString: Untagged
@@ -4826,9 +4879,9 @@ RectTransform:
   m_Father: {fileID: 827929874926561913}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 200, y: -160}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: -97.5}
   m_SizeDelta: {x: 275, y: 90}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &4595696145797232841
@@ -4912,7 +4965,44 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1662786610693600216}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 294767368}
+        m_TargetAssemblyTypeName: UIButtons, Assembly-CSharp
+        m_MethodName: StartVolcanoMode
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+      - m_Target: {fileID: 4790339655226382049}
+        m_TargetAssemblyTypeName: Show_Hide_UI, Assembly-CSharp
+        m_MethodName: show_hide
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+--- !u!114 &294767368
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5274219568536983493}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9f1ad3fea6f345c46a7db969f9a3535a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  manager: {fileID: 0}
 --- !u!1 &5521625566427105359
 GameObject:
   m_ObjectHideFlags: 0
@@ -9345,6 +9435,10 @@ MonoBehaviour:
   dampingSlider: {fileID: 6461826788520262188}
   particlesNumSlider: {fileID: 6461826787935315161}
   dimsSlider: {fileID: 6461826788033647751}
+  volcanoInts: {fileID: 0}
+  volcanoRadius: {fileID: 0}
+  tsunamiInts: {fileID: 0}
+  tsunamiWidth: {fileID: 0}
 --- !u!1 &6461826788820081475
 GameObject:
   m_ObjectHideFlags: 0
@@ -10237,7 +10331,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &593868840768680581
 RectTransform:
   m_ObjectHideFlags: 0
@@ -10254,9 +10348,9 @@ RectTransform:
   m_Father: {fileID: 6750387656296891823}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 230, y: -957.05}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 200, y: -73.025}
   m_SizeDelta: {x: 311.17, y: 90}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &8186068852514218594
@@ -10509,7 +10603,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Grd crack
+  m_text: Tsunami
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: d412778188a766e4fb1452faaa30738e, type: 2}
   m_sharedMaterial: {fileID: 5844102192697836504, guid: d412778188a766e4fb1452faaa30738e, type: 2}
@@ -10708,7 +10802,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &6750387656296891823
 RectTransform:
   m_ObjectHideFlags: 0
@@ -10728,7 +10822,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -250, y: -193}
+  m_AnchoredPosition: {x: -250, y: -946}
   m_SizeDelta: {x: 400, y: 252.1}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3811751964211084218
@@ -10807,6 +10901,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9f1ad3fea6f345c46a7db969f9a3535a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  manager: {fileID: 0}
 --- !u!1 &7617322006054531738
 GameObject:
   m_ObjectHideFlags: 0
@@ -11193,14 +11288,18 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   particleManager: {fileID: 0}
-  radiusSlider: {fileID: 4730889829100460109}
-  massSlider: {fileID: 5271307395226166044}
-  gcSlider: {fileID: 2675345728561257894}
-  restDensSlider: {fileID: 6263303778860917024}
+  radiusSlider: {fileID: 0}
+  massSlider: {fileID: 0}
+  gcSlider: {fileID: 0}
+  restDensSlider: {fileID: 0}
   viscositySlider: {fileID: 0}
   dampingSlider: {fileID: 0}
   particlesNumSlider: {fileID: 0}
   dimsSlider: {fileID: 0}
+  volcanoInts: {fileID: 4730889829100460109}
+  volcanoRadius: {fileID: 5271307395226166044}
+  tsunamiInts: {fileID: 2675345728561257894}
+  tsunamiWidth: {fileID: 6263303778860917024}
 --- !u!1 &8199971062645800942
 GameObject:
   m_ObjectHideFlags: 0
@@ -11355,7 +11454,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &5511135573032728254
 RectTransform:
   m_ObjectHideFlags: 0
@@ -11372,9 +11471,9 @@ RectTransform:
   m_Father: {fileID: 6750387656296891823}
   m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 230, y: -827.05}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 200, y: -179.07501}
   m_SizeDelta: {x: 321.42, y: 90}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7561728686401701231
