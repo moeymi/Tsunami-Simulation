@@ -71,6 +71,8 @@ public class GPU_Particle_Manager : MonoBehaviour
     private Vector3[] _velocities;
     private Vector3[] _forces;
 
+    private Camera mainCamera;
+
     float k1;
     float k2;
     float k3;
@@ -125,8 +127,8 @@ public class GPU_Particle_Manager : MonoBehaviour
 
     private void Awake()
     {
-        Camera.main.transform.position = new Vector3(dimensions / 2, dimensions/1.2f, -dimensions/2);
-
+        mainCamera = Camera.main;
+        mainCamera.transform.position = new Vector3(dimensions / 2, dimensions/1.8f, -dimensions/4f);
         radius2 = radius * radius;
         radius3 = radius2 * radius;
         radius4 = radius3 * radius;
