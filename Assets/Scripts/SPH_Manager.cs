@@ -21,6 +21,7 @@ public class SPH_Manager : MonoBehaviour
 
     [Header("Simulation space properties")]
     public bool tsunamiMode = false;
+    public bool volcanoMode = false;
     public int numberOfParticles = 1000;
     public int dimensions = 10;
     public int maximumParticlesPerCell = 500;
@@ -62,6 +63,8 @@ public class SPH_Manager : MonoBehaviour
     private Transform staticCollidersParent;
     [SerializeField]
     private Transform dynamicCollidersParent;
+
+    private float timer = 0;
 
     private void Awake()
     {
@@ -201,7 +204,7 @@ public class SPH_Manager : MonoBehaviour
 
         /* GameObject parentParticle = new GameObject();*/
         float x_start_offset = 0 + particleRadius;
-        float y_start_offset = 0 + particleRadius * 5;
+        float y_start_offset = 0 + particleRadius * 2;
         float z_start_offset = 0 + particleRadius;
         float x_end_offset = dimensions - particleRadius;
         float y_end_offset = dimensions - particleRadius;
@@ -265,6 +268,10 @@ public class SPH_Manager : MonoBehaviour
 
     void Update()
     {
+        if (tsunamiMode)
+            timer += 0.01f;
+        if (volcanoMode)
+            timer += 0.01f;
         // Calculate hash of all particles and build neighboring list.
         // 1. Clear HashGrid
         foreach (var cell in _hashGrid)
@@ -517,8 +524,10 @@ public class SPH_Manager : MonoBehaviour
                         forces[i] += (center - _particles[i].transform.position).normalized * 9.81f ;*/
             forces[i] += g;
             if (tsunamiMode)
-                forces[i] += TsunamiForces(_particles[i].transform.position);
-        }
+                forces[i] += TsunamiForces3(new Vector3(dimensions / 2, 0, dimensions / 2), _particles[i].transform.position, dimensions / 3.0f);
+            if (volcanoMode)
+                forces[i] += HurricaneForce(new Vector3(dimensions / 2, 0, dimensions / 2) ,_particles[i].transform.position , dimensions/2.0f);
+        } 
     }
 
     public Vector3 TsunamiForces(Vector3 position)
@@ -551,6 +560,113 @@ public class SPH_Manager : MonoBehaviour
         }
 
         return Vector3.zero;
+    }
+
+    public Vector3 TsunamiForces2(Vector3 position)
+    {
+        float halfD = dimensions / 2.0f;
+        int quarter = 0;
+
+
+        if (position.x > halfD) quarter++;
+        if (position.y > halfD)
+        {
+            quarter++;
+            if (position.x <= halfD)
+                quarter++;
+        }
+
+        float x_percentage = position.x / dimensions;
+        float y_percentage = position.y / dimensions;
+
+        if (quarter == 0)
+        {
+            if (timer < 1.0f)
+            {
+                return new Vector3( 10, 0, 0);
+            }
+        }
+
+        if (quarter == 1)
+        {
+            if (timer < 1.0f)
+            {
+                return new Vector3(0, 12, 0);
+            }
+            else
+            {
+                return new Vector3(-10, 10, 0); 
+            }
+        }
+        if (timer > 2)
+        {
+            timer = 0;
+            tsunamiMode = false; 
+        }
+
+        return Vector3.zero;
+    }
+
+
+    public Vector3 TsunamiForces3(Vector3 tsunamiOrigin, Vector3 particlePosition , float tsunamiWidth)
+    {
+       
+        if (timer > 2.5 )
+        {
+            timer = 0;
+            tsunamiMode = false;
+        }
+
+        Vector3 tsunamiForce = new Vector3(0, 30, 0);
+
+        if (timer < 1)
+        {
+            Vector3 difference = particlePosition - tsunamiOrigin;
+
+            if (Mathf.Abs(difference.x) > tsunamiWidth)
+                return new Vector3( 15 * (particlePosition.x > tsunamiOrigin.x ? -1 : 1) , 0 , 0);
+
+            float distForce = Mathf.Clamp(1 - Mathf.Abs(difference.x) / tsunamiWidth, 0, 1);
+
+            Vector3 zForce = Vector3.Project(difference, new Vector3(0, 0, 1)) * 4;
+
+            return (tsunamiForce) * distForce ;
+        }
+        else if (timer > 2)
+        {
+            tsunamiOrigin.y = 3f; 
+            tsunamiForce = new Vector3(10, 5, 0);
+            Vector3 difference = particlePosition - tsunamiOrigin;
+
+            if (Mathf.Abs(difference.x) > tsunamiWidth && Mathf.Abs(difference.y) < tsunamiOrigin.y)
+                return Vector3.zero;
+
+            float distForce = Mathf.Clamp(1 - Mathf.Abs(difference.x)  / tsunamiWidth , 0, 1);
+
+            tsunamiForce.x *= distForce * (difference.x > 0 ? 1 : -1 );
+
+            return tsunamiForce;
+
+        } 
+
+        return Vector3.zero; 
+    }
+
+    public Vector3 HurricaneForce (Vector3 volcanoOrigin , Vector3 particlePosition,float hurricaneRadius)
+    {
+        if (timer >1)
+        {
+            timer = 0;
+            volcanoMode = false;
+        }
+        Vector3 difference = particlePosition - volcanoOrigin;
+
+        if (difference.magnitude > hurricaneRadius)
+            return Vector3.zero;
+
+        Vector3 hurricaneForce = (difference.normalized + new Vector3(0,1,0) ) * 100 * Mathf.Clamp((1 - difference.magnitude / hurricaneRadius),0,1);
+
+        return hurricaneForce ; 
     }
 
     private void OnDrawGizmos()

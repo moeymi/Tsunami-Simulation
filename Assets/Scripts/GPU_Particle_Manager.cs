@@ -33,6 +33,7 @@ public class GPU_Particle_Manager : MonoBehaviour
 
     [Header("Simulation properties")]
     public bool TsunamiMode;
+    public bool VolcanoMode;
     public int numberOfParticles = 50000;
     public int dimensions = 100;
     public int maximumParticlesPerCell = 500;
@@ -71,6 +72,8 @@ public class GPU_Particle_Manager : MonoBehaviour
     float k1;
     float k2;
     float k3;
+
+    float timer; 
 
     private ComputeBuffer _particlesBuffer;
     private ComputeBuffer _trisBuffer;
@@ -132,6 +135,8 @@ public class GPU_Particle_Manager : MonoBehaviour
         FindKernels();
         InitComputeShader();
         InitComputeBuffers();
+
+        timer = 0; 
     }
 
     #region Initialisation
@@ -221,6 +226,7 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader.SetFloat("colorModifier", colorModifier);
         computeShader.SetFloat("noiseRate", noiseRate);
         computeShader.SetBool ("TsunamiMode", TsunamiMode);
+        computeShader.SetBool("VolcanoMode", VolcanoMode);
     }
 
     // for calculations
@@ -371,6 +377,16 @@ public class GPU_Particle_Manager : MonoBehaviour
 
     void Update()
     {
+        if (VolcanoMode)
+        {
+            timer += Time.deltaTime;
+            if (timer > 0.5f)
+            {
+                timer = 0;
+                VolcanoMode = false;
+                computeShader.SetBool("VolcanoMode", VolcanoMode);
+            }
+        }
         computeShader.SetFloat("dt", Time.deltaTime);
         computeShader.Dispatch(clearHashGridKernel, dimensions * dimensions * dimensions / 100, 1, 1);
         computeShader.Dispatch(recalculateHashGridKernel, numberOfParticles / 100, 1, 1);
@@ -425,5 +441,6 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader?.SetFloat("colorModifier", colorModifier);
         computeShader?.SetFloat("noiseRate", noiseRate);
         computeShader?.SetBool("TsunamiMode", TsunamiMode);
+        computeShader?.SetBool("VolcanoMode", VolcanoMode);
     }
 }

@@ -12,6 +12,7 @@
 float CellSize;
 int Dimensions;
 bool TsunamiMode;
+bool VolcanoMode;
 
 struct Tri {
     float3 p0;
@@ -135,6 +136,8 @@ float k2;
 float k3;
 float colorModifier;
 float noiseRate;
+
+float timer =0 ;
 
 float4 surfaceColor;
 float4 baseColor;
@@ -367,8 +370,22 @@ float ViscosityLaplacian(float r, float h)
     return coef * (h - r);
 }
 
+float3 VolcanoForces(float3 volcanoOrigin, float3 particlePosition, float volcanoRadius)
+{
+
+    float3 difference = particlePosition - volcanoOrigin;
+
+    if (length(difference) > volcanoRadius)
+        return float3(0,0,0);
+
+    float3 volcanoForce = (normalize(difference)+ float3(0, 1, 0)) * 100 * clamp((1 - length(difference) / volcanoRadius), 0, 1);
+
+    return volcanoForce;
+}
+
 float3 TsunamiForces(float3 position)
 {
+
     float halfD = Dimensions / 2.0f;
     int quarter = 0;
 
@@ -397,6 +414,27 @@ float3 TsunamiForces(float3 position)
     case 3:
         return  float3(200, -500 * (1-x_percentage), 0);
     }
+
+    //if (quarter == 0)
+    //{
+    //    if (timer < 1.0f)
+    //    {
+    //        return float3(10, 0, 0);
+    //    }
+    //}
+
+    //if (quarter == 1)
+    //{
+    //    if (timer < 1.0f)
+    //    {
+    //        return float3(0, 12, 0);
+    //    }
+    //    else
+    //    {
+    //        return float3(-10, 10, 0);
+    //    }
+    //}
+
     return float3(0, 0, 0);
 }
 
@@ -440,8 +478,12 @@ void ComputeForces(uint3 id : SV_DispatchThreadID)
     }
     // Gravity
     _forces[id.x] += g;
-    if (TsunamiMode)
+    if (TsunamiMode) {
         _forces[id.x] += TsunamiForces(_particles[id.x]);
+    }
+    if (VolcanoMode) {
+        _forces[id.x] += VolcanoForces(float3(Dimensions/2,0, Dimensions/2),_particles[id.x] , Dimensions / 2);
+    }
 }
 
 float Hash_From2D(float Vec, float time)
