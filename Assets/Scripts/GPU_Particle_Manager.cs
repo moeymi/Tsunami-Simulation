@@ -33,8 +33,10 @@ public class GPU_Particle_Manager : MonoBehaviour
 
     [Header("Simulation properties")]
     public bool TsunamiMode;
+    public float TsunamiWidth; 
     public bool showTsunamiIndicator; 
     public bool VolcanoMode;
+    public float VolcanoRadius; 
     public bool showVolcanoIndicator; 
     public int numberOfParticles = 50000;
     public int dimensions = 100;
@@ -152,7 +154,9 @@ public class GPU_Particle_Manager : MonoBehaviour
         InitComputeShader();
         InitComputeBuffers();
 
-        timer = 0; 
+        timer = 0;
+        TsunamiWidth = dimensions / 2.0f;
+        VolcanoRadius = dimensions / 2.0f; 
     }
 
     #region Initialisation
@@ -399,7 +403,8 @@ public class GPU_Particle_Manager : MonoBehaviour
 
     private void ShowIndicators()
     {
-        GameObject indicator = showVolcanoIndicator ? volcanoIndicator : showTsunamiIndicator ? tsunamiIndicator : null; 
+        GameObject indicator = showVolcanoIndicator ? volcanoIndicator : showTsunamiIndicator ? tsunamiIndicator : null;
+        float scale = showVolcanoIndicator ? VolcanoRadius : showTsunamiIndicator ? TsunamiWidth : 0;
 
         if (indicator != null )
         {
@@ -411,10 +416,9 @@ public class GPU_Particle_Manager : MonoBehaviour
                 worldPosition.y = floorHeight;
                 if (!indicatorIsRendered)
                 {
-                    indicatorIsRendered = true; 
+                    indicatorIsRendered = true;
+                    indicator.transform.localScale = new Vector3(showTsunamiIndicator ? dimensions : scale, 0.1f , scale);
                     indicator.SetActive(true);
-                    /* Get scale from mode width/radius*/
-                    //indicator.transform.localScale = new Vector3(1,1,1);
                 }
                 indicator.transform.position = worldPosition;
             }
