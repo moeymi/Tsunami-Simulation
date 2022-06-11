@@ -38,6 +38,8 @@ public class GPU_Particle_Manager : MonoBehaviour
     public int dimensions = 100;
     public int maximumParticlesPerCell = 500;
 
+    public float floorHeight;
+
     public Color baseColor = Color.blue;
     public Color surfaceColor = Color.white;
 
@@ -123,6 +125,8 @@ public class GPU_Particle_Manager : MonoBehaviour
 
     private void Awake()
     {
+        Camera.main.transform.position = new Vector3(dimensions / 2, dimensions/1.2f, -dimensions/2);
+
         radius2 = radius * radius;
         radius3 = radius2 * radius;
         radius4 = radius3 * radius;
@@ -155,11 +159,9 @@ public class GPU_Particle_Manager : MonoBehaviour
         _velocities = new Vector3[numberOfParticles];
         _forces = new Vector3[numberOfParticles];
 
-        int particlesPerDimension = Mathf.CeilToInt(Mathf.Pow(numberOfParticles, 1f / 3f));
-
         int counter = 0;
         float x_start_offset = 0 + radius;
-        float y_start_offset = dimensions/2 + radius +0.01f;
+        float y_start_offset = 0 + radius + floorHeight;
         float z_start_offset = 0 + radius;
         float x_end_offset = dimensions - radius;
         float y_end_offset = dimensions - radius;
@@ -167,7 +169,7 @@ public class GPU_Particle_Manager : MonoBehaviour
 
         while (counter < numberOfParticles)
         {
-            for (float y = y_start_offset; y < y_end_offset; y += radius)
+            for (float y = y_start_offset; y < y_end_offset; y += radius/2)
                 for (float x = x_start_offset; x < x_end_offset; x += radius)
                     for (float z = z_start_offset; z < z_end_offset; z += radius)
                     {
@@ -238,34 +240,6 @@ public class GPU_Particle_Manager : MonoBehaviour
     int[] triangles;
     Vector3[] normals;
     Matrix4x4 localToWorld;
-    bool PointInTriangle(Tri tri, Vector3 p)
-    {
-        Vector3 c = Vector3.Cross(tri.p2 - tri.p0, tri.p2 - tri.p1);
-        float triArea = (c).magnitude / 2;
-        Vector3 d1;
-        Vector3 d2;
-        float sumArea = 0;
-        d1 = p - tri.p0;
-        d2 = p - tri.p1;
-        c = Vector3.Cross(d1, d2);
-        sumArea += (c).magnitude / 2;
-
-        d1 = p - tri.p1;
-        d2 = p - tri.p2;
-        c = Vector3.Cross(d1, d2);
-        sumArea += (c).magnitude / 2;
-
-        d1 = p - tri.p0;
-        d2 = p - tri.p2;
-        c = Vector3.Cross(d1, d2);
-        sumArea += (c).magnitude / 2;
-
-        if (Mathf.Abs(sumArea - triArea) < 0.5f)
-        {
-            return true;
-        }
-        return false;
-    }
     private void InitTris()
     {
         MeshFilter[] colliders = collidersParent.GetComponentsInChildren<MeshFilter>();
@@ -278,7 +252,6 @@ public class GPU_Particle_Manager : MonoBehaviour
             localToWorld = colliders[i].transform.localToWorldMatrix;
             for (int j = 0; j < triangles.Length; j += 3)
             {
-                Vector3 facePos = (vertices[triangles[j]] + vertices[triangles[j + 1]] + vertices[triangles[j + 2]]) / 3;
                 Vector3 p0 = localToWorld.MultiplyPoint3x4(vertices[triangles[j]]);
                 Vector3 p1 = localToWorld.MultiplyPoint3x4(vertices[triangles[j + 1]]);
                 Vector3 p2 = localToWorld.MultiplyPoint3x4(vertices[triangles[j + 2]]);
@@ -295,7 +268,6 @@ public class GPU_Particle_Manager : MonoBehaviour
         }
         _tris = trisList.ToArray();
     }
-
     void InitComputeBuffers()
     {
         uint[] args = {
@@ -419,13 +391,27 @@ public class GPU_Particle_Manager : MonoBehaviour
     {
         computeShader.Dispatch(recalculateCollisionHashGridKernel, _tris.Length, 1, 1);
     }
-
+    Plane plane = new Plane(Vector3.up, 0);
+    Vector3 worldPosition;
     void Update()
     {
+        if (Input.GetMouseButtonDown(0))
+        {
+            float distance;
+            Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+            if (plane.Raycast(ray, out distance))
+            {
+                worldPosition = ray.GetPoint(distance);
+                VolcanoMode = true;
+                timer = 0;
+                computeShader.SetFloats("volcanoOrigin", new float[] { worldPosition.x, 0, worldPosition.z });
+                computeShader.SetBool("VolcanoMode", VolcanoMode);
+            }
+        }
         if (VolcanoMode)
         {
-            timer += Time.deltaTime;
-            if (timer > 0.3f)
+            timer += Mathf.Min(0.08f, Time.deltaTime);
+            if (timer > 0.2f)
             {
                 timer = 0;
                 VolcanoMode = false;
@@ -435,8 +421,8 @@ public class GPU_Particle_Manager : MonoBehaviour
 
         if (TsunamiMode)
         {
-            timer += Time.deltaTime; 
-            if (timer > 1)
+            timer += Mathf.Min(0.08f, Time.deltaTime); 
+            if (timer > 0.5)
             {
                 timer = 0;
                 TsunamiMode = false;
@@ -444,7 +430,7 @@ public class GPU_Particle_Manager : MonoBehaviour
             }
         }
 
-        computeShader.SetFloat("dt", Mathf.Min(0.06f, Time.deltaTime));
+        computeShader.SetFloat("dt", Mathf.Min(0.08f, Time.deltaTime));
         computeShader.Dispatch(clearHashGridKernel, dimensions * dimensions * dimensions / 100, 1, 1);
         computeShader.Dispatch(recalculateHashGridKernel, numberOfParticles / 100, 1, 1);
         computeShader.Dispatch(buildNeighbourListKernel, numberOfParticles / 100, 1, 1);

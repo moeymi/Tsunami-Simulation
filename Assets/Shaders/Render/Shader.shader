@@ -21,6 +21,8 @@ Shader "Example/URPUnlitShaderNormal"
             #pragma vertex vert            
             #pragma fragment frag
             #pragma multi_compile_instancing
+            #pragma multi_compile_fog
+            #pragma multi_compile LIGHTMAP_ON LIGHTMAP_OFF
 
             #define HASHSCALE1 0.3183099
 
@@ -55,7 +57,7 @@ Shader "Example/URPUnlitShaderNormal"
                 float4 data = float4(_particlesBuffer[IN.instanceID], 0);
 
                 float3 localPosition = IN.position.xyz;
-                localPosition *= _Size/1.5;
+                localPosition *= _Size/1.25f;
 
                 float3 worldPosition = localPosition + data;
                 float4 finalPos = mul(UNITY_MATRIX_VP, float4(worldPosition, 1.0f));

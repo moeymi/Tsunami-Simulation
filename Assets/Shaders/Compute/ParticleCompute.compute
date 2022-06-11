@@ -14,6 +14,8 @@ int Dimensions;
 bool TsunamiMode;
 bool VolcanoMode;
 
+float3 volcanoOrigin;
+
 struct Tri {
     float3 p0;
     float3 p1;
@@ -32,7 +34,7 @@ int Hash(int3 cell)
     return cell.x + Dimensions * (cell.y + Dimensions * cell.z);
 }
 float3 Project(float3 a, float3 b) {
-    float3 c = (dot(a, b) / pow(normalize(b), 2)) * b;
+    float3 c = (dot(a, b) / (pow(normalize(b), 2) + 0.00001)) * b;
     return c;
 }
 
@@ -171,66 +173,95 @@ void RecalculateCollisionHashGrid(uint3 id : SV_DispatchThreadID)
     float distance1 = length(tri.p0 - tri.p1);
     float distance2 = length(tri.p1 - tri.p2);
     float distance3 = length(tri.p0 - tri.p2);
+    int prevHash = -1;
+
+    int prevCount = 0;
+    int cellHash = Hash(GetCell(tri.p0));
+    InterlockedAdd(_collisionHashGridTracker[cellHash], 1, prevCount);
+    if (prevCount < maximumParticlesPerCell && prevHash != cellHash)
+        _collisionHashGrid[cellHash * maximumParticlesPerCell + prevCount] = id.x;
+    prevHash = cellHash;
+
+    prevCount = 0;
+    cellHash = Hash(GetCell(tri.p1));
+    InterlockedAdd(_collisionHashGridTracker[cellHash], 1, prevCount);
+    if (prevCount < maximumParticlesPerCell && prevHash != cellHash)
+        _collisionHashGrid[cellHash * maximumParticlesPerCell + prevCount] = id.x;
+    prevHash = cellHash;
+
+    prevCount = 0;
+    cellHash = Hash(GetCell(tri.p2));
+    InterlockedAdd(_collisionHashGridTracker[cellHash], 1, prevCount);
+    if (prevCount < maximumParticlesPerCell && prevHash != cellHash)
+        _collisionHashGrid[cellHash * maximumParticlesPerCell + prevCount] = id.x;
+    prevHash = cellHash;
+
     if (distance1 > distance2 && distance1 > distance3)
     {
-        int t1 = ceil(distance2 / (CellSize / 2));
-        int t2 = ceil(distance3 / (CellSize / 2));
-        for (int h = 0; h <= t1; h++)
+        int t1 = (int)(distance2 / CellSize);
+        int t2 = (int)(distance3 / CellSize);
+        for (int h = 0; h < t1; h++)
         {
-            for (int l = 0; l <= t2; l++)
+            for (int l = 0; l < t2; l++)
             {
-                float3 potentialCell = tri.p2 + (normalize(tri.p1 - tri.p2) * (CellSize/2) * h) + (normalize(tri.p0 - tri.p2) * (CellSize / 2) * l);
+                float3 potentialCell = tri.p2 + (normalize(tri.p1 - tri.p2) * CellSize * h) + (normalize(tri.p0 - tri.p2) * CellSize * l);
                 if (potentialCell.x < 0) potentialCell.x = 0;
                 if (potentialCell.y < 0) potentialCell.y = 0;
                 if (potentialCell.z < 0) potentialCell.z = 0;
-                if (PointInTriangle(tri, potentialCell)) {
+                cellHash = Hash(GetCell(potentialCell));
+                if (PointInTriangle(tri, potentialCell) && cellHash != prevHash) {
                     int prevCount = 0;
-                    const int cellHash = Hash(GetCell(potentialCell));
+                    prevHash = cellHash;
                     InterlockedAdd(_collisionHashGridTracker[cellHash], 1, prevCount);
-                    _collisionHashGrid[cellHash * maximumParticlesPerCell + prevCount] = id.x;
+                    if (prevCount < maximumParticlesPerCell)
+                        _collisionHashGrid[cellHash * maximumParticlesPerCell + prevCount] = id.x;
                 }
             }
         }
     }
     else if (distance2 > distance1 && distance2 > distance3)
     {
-        int t1 = ceil(distance1 / (CellSize / 2));
-        int t2 = ceil(distance3 / (CellSize / 2));
-        for (int h = 0; h <= t1; h++)
+        int t1 = (int)(distance1 / CellSize);
+        int t2 = (int)(distance3 / CellSize);
+        for (int h = 0; h < t1; h++)
         {
-            for (int l = 0; l <= t2; l++)
+            for (int l = 0; l < t2; l++)
             {
-                float3 potentialCell = tri.p0 + (normalize(tri.p2 - tri.p0) * (CellSize / 2) * l) + (normalize(tri.p1 - tri.p0) * (CellSize / 2) * h);
+                float3 potentialCell = tri.p0 + (normalize(tri.p2 - tri.p0) * CellSize * l) + (normalize(tri.p1 - tri.p0) * CellSize * h);
                 if (potentialCell.x < 0) potentialCell.x = 0;
                 if (potentialCell.y < 0) potentialCell.y = 0;
                 if (potentialCell.z < 0) potentialCell.z = 0;
-                if (PointInTriangle(tri, potentialCell)) {
+                cellHash = Hash(GetCell(potentialCell));
+                if (PointInTriangle(tri, potentialCell) && cellHash != prevHash) {
                     int prevCount = 0;
-                    const int cellHash = Hash(GetCell(potentialCell));
+                    prevHash = cellHash;
                     InterlockedAdd(_collisionHashGridTracker[cellHash], 1, prevCount);
-                    _collisionHashGrid[cellHash * maximumParticlesPerCell + prevCount] = id.x;
+                    if (prevCount < maximumParticlesPerCell)
+                        _collisionHashGrid[cellHash * maximumParticlesPerCell + prevCount] = id.x;
                 }
             }
         }
     }
     else
     {
-        int t1 = ceil(distance1 / (CellSize / 2));
-        int t2 = ceil(distance2 / (CellSize / 2));
+        int t1 = (int)(distance1 / CellSize);
+        int t2 = (int)(distance2 / CellSize);
         int h = 0, l = 0;
-        for (h = 0; h <= t1; h++)
+        for (h = 0; h < t1; h++)
         {
-            for (l = 0; l <= t2; l++)
+            for (l = 0; l < t2; l++)
             {
-                float3 potentialCell = tri.p1 + (normalize(tri.p2 - tri.p1) * (CellSize / 2) * l) + (normalize(tri.p0 - tri.p1) * (CellSize / 2) * h);
+                float3 potentialCell = tri.p1 + (normalize(tri.p2 - tri.p1) * CellSize * l) + (normalize(tri.p0 - tri.p1) * CellSize * h);
                 if (potentialCell.x < 0) potentialCell.x = 0;
                 if (potentialCell.y < 0) potentialCell.y = 0;
                 if (potentialCell.z < 0) potentialCell.z = 0;
-                if (PointInTriangle(tri, potentialCell)) {
+                cellHash = Hash(GetCell(potentialCell));
+                if (PointInTriangle(tri, potentialCell) && cellHash != prevHash) {
                     int prevCount = 0;
-                    const int cellHash = Hash(GetCell(potentialCell));
+                    prevHash = cellHash;
                     InterlockedAdd(_collisionHashGridTracker[cellHash], 1, prevCount);
-                    _collisionHashGrid[cellHash * maximumParticlesPerCell + prevCount] = id.x;
+                    if(prevCount < maximumParticlesPerCell)
+                        _collisionHashGrid[cellHash * maximumParticlesPerCell + prevCount] = id.x;
                 }
             }
         }
@@ -342,7 +373,7 @@ void BuildCollisionNeighbourList(uint3 id : SV_DispatchThreadID)
         for (uint j = 0; j < 8; j++)
         {
             if (cells[j] == -1) continue;
-            const uint numberOfTrianglesInCell = _collisionHashGridTracker[cells[j]];
+            const uint numberOfTrianglesInCell = min(maximumParticlesPerCell, _collisionHashGridTracker[cells[j]]);
             for (uint index = 0; index < numberOfTrianglesInCell; index++)
             {
                 const uint potentialNeighbour = _collisionHashGrid[cells[j] * maximumParticlesPerCell + index];
@@ -394,7 +425,7 @@ float ViscosityLaplacian(float r, float h)
     return coef * (h - r);
 }
 
-float3 VolcanoForces(float3 volcanoOrigin, float3 particlePosition, float volcanoRadius)
+float3 VolcanoForces(float3 particlePosition, float volcanoRadius)
 {
 
     float3 difference = particlePosition - volcanoOrigin;
@@ -402,14 +433,14 @@ float3 VolcanoForces(float3 volcanoOrigin, float3 particlePosition, float volcan
     if (length(difference) > volcanoRadius)
         return float3(0,0,0);
 
-    float3 volcanoForce = (normalize(difference)+ float3(0, 1, 0)) * 150 * clamp((1 - length(difference) / volcanoRadius), 0, 1);
+    float3 volcanoForce = (normalize(difference)+ float3(0, 1, 0)) * 50 * clamp((1 - length(difference) / volcanoRadius), 0, 1);
 
     return volcanoForce;
 }
 
 float3 TsunamiForces(float3 tsunamiOrigin , float3 particlePosition , float tsunamiWidth)
 {
-    float3 tsunamiForce = float3(0, 40, 0);
+    float3 tsunamiForce = float3(-20, 40, 0);
 
     float3 difference = particlePosition - tsunamiOrigin;
 
@@ -417,8 +448,6 @@ float3 TsunamiForces(float3 tsunamiOrigin , float3 particlePosition , float tsun
         return float3(10 * (particlePosition.x > tsunamiOrigin.x ? -1 : 1), 0, 0);
 
     float distForce = clamp(1 - abs(difference.x) / tsunamiWidth, 0, 1);
-
-    float3 xForce = Project(difference, float3(1, 0, 0)) * 5;
 
     return (tsunamiForce) * distForce;
 }
@@ -467,7 +496,7 @@ void ComputeForces(uint3 id : SV_DispatchThreadID)
         _forces[id.x] += TsunamiForces(float3(Dimensions / 2, 0, Dimensions / 2), _particles[id.x], Dimensions / 2);
     }
     if (VolcanoMode) {
-        _forces[id.x] += VolcanoForces(float3(Dimensions/2,0, Dimensions/2),_particles[id.x] , Dimensions / 2);
+        _forces[id.x] += VolcanoForces(_particles[id.x] , Dimensions / 2);
     }
 }
 
@@ -492,7 +521,7 @@ void ComputeCollisions(uint3 id : SV_DispatchThreadID) {
         float3 closestPoint = ProjectPointOnPlane(_tris[neighbourIndex].normal, _tris[neighbourIndex].p0, _particles[id.x]);
         float velocityTowardsCollider = dot(_velocities[id.x], normalize(closestPoint - _particles[id.x]));
 
-        if (velocityTowardsCollider > 0.5f) collisionDamping *= 0.5f;
+        if (velocityTowardsCollider > 0.5f) collisionDamping *= 0.25f;
 
         float3 newVel = reflect(_velocities[id.x], _tris[neighbourIndex].normal);
         _velocities[id.x] = newVel;
