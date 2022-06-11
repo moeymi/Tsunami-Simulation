@@ -151,6 +151,8 @@ public class UISliders : MonoBehaviour
         {
             particleManager.VolcanoRadius = volcanoRadius.value;
             particleManager.TsunamiWidth = tsunamiWidth.value;
+            particleManager.VolcanoInts = volcanoInts.value;
+            particleManager.TsunamiInts = tsunamiInts.value;
         } catch { }
     }
 }

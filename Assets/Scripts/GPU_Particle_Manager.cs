@@ -33,10 +33,12 @@ public class GPU_Particle_Manager : MonoBehaviour
 
     [Header("Simulation properties")]
     public bool TsunamiMode;
-    public float TsunamiWidth; 
+    public float TsunamiWidth;
+    public float TsunamiInts;
     public bool showTsunamiIndicator; 
     public bool VolcanoMode;
-    public float VolcanoRadius; 
+    public float VolcanoRadius;
+    public float VolcanoInts;
     public bool showVolcanoIndicator; 
     public int numberOfParticles = 50000;
     public int dimensions = 100;
@@ -266,6 +268,8 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader.SetBool("VolcanoMode", VolcanoMode);
         computeShader.SetFloat("tsunamiWidth", TsunamiWidth);
         computeShader.SetFloat("volcanoRadius", VolcanoRadius);
+        computeShader.SetFloat("tsunamiInts", TsunamiInts);
+        computeShader.SetFloat("volcanoInts", VolcanoInts);
     }
 
     // for calculations
@@ -481,7 +485,10 @@ public class GPU_Particle_Manager : MonoBehaviour
                 timer = 0;
                 computeShader.SetFloats("volcanoOrigin", new float[] { worldPosition.x, 0, worldPosition.z });
                 computeShader.SetFloat("volcanoRadius", VolcanoRadius);
+                computeShader.SetFloat("volcanoInts", VolcanoInts);
                 computeShader.SetBool("VolcanoMode", VolcanoMode);
+                Debug.LogError(VolcanoRadius);
+                Debug.LogError(VolcanoInts);
                 volcanoIndicator.SetActive(false);
                 showVolcanoIndicator = false;
                 indicatorIsRendered = false; 
@@ -492,6 +499,7 @@ public class GPU_Particle_Manager : MonoBehaviour
                 timer = 0;
                 computeShader.SetFloats("tsunamiOrigin", new float[] { worldPosition.x, 0, worldPosition.z });
                 computeShader.SetFloat("tsunamiWidth", TsunamiWidth);
+                computeShader.SetFloat("tsunamiInts", TsunamiInts);;
                 computeShader.SetBool("TsunamiMode", TsunamiMode);
                 tsunamiIndicator.SetActive(false);
                 showTsunamiIndicator = false;
@@ -582,5 +590,7 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader?.SetBool("VolcanoMode", VolcanoMode);
         computeShader?.SetFloat("tsunamiWidth", TsunamiWidth);
         computeShader?.SetFloat("volcanoMode", VolcanoRadius);
+        computeShader?.SetFloat("tsunamiInts", TsunamiInts);
+        computeShader?.SetFloat("volcanoInts", VolcanoInts);
     }
 }

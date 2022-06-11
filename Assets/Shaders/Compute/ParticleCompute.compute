@@ -16,8 +16,10 @@ bool VolcanoMode;
 
 float3 volcanoOrigin;
 float  volcanoRadius; 
+float volcanoInts; 
 float3 tsunamiOrigin;
 float  tsunamiWidth;
+float tsunamiInts; 
 
 struct Tri {
     float3 p0;
@@ -436,14 +438,14 @@ float3 VolcanoForces(float3 particlePosition)
     if (length(difference) > volcanoRadius)
         return float3(0,0,0);
 
-    float3 volcanoForce = (normalize(difference)+ float3(0, 1, 0)) * 50 * clamp((1 - length(difference) / volcanoRadius), 0, 1);
+    float3 volcanoForce = (normalize(difference)+ float3(0, 1, 0)) * volcanoInts * clamp((1 - length(difference) / volcanoRadius), 0, 1);
 
     return volcanoForce;
 }
 
 float3 TsunamiForces(float3 particlePosition )
 {
-    float3 tsunamiForce = float3(-20, 40, 0);
+    float3 tsunamiForce = float3(-20, tsunamiInts, 0);
 
     float3 difference = particlePosition - tsunamiOrigin;
 

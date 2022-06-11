@@ -5604,9 +5604,11 @@ MonoBehaviour:
   damping: -0.5
   TsunamiMode: 0
   TsunamiWidth: 0
+  TsunamiInts: 0
   showTsunamiIndicator: 0
   VolcanoMode: 0
   VolcanoRadius: 0
+  VolcanoInts: 0
   showVolcanoIndicator: 0
   numberOfParticles: 10000
   dimensions: 120
