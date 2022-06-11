@@ -138,32 +138,43 @@ public class GPU_Particle_Manager : MonoBehaviour
     {
         mainCamera = Camera.main;
         EventsPool.StartExperienceEvent.AddListener(StartExperience);
-        EventsPool.UpdateUIEvent.AddListener(
-            () => mainCamera.transform.position = new Vector3(dimensions / 2, dimensions / 1.8f, -dimensions / 4f));
+        EventsPool.UpdateUIEvent.AddListener(() => {
+            mainCamera.transform.position = new Vector3(dimensions / 2, dimensions * 0.9f, -dimensions / 10f);
+            collidersParent.transform.parent.localScale = Vector3.one * (dimensions / 120f);
+            collidersParent.transform.parent.position = new Vector3(dimensions / 2, 0, dimensions / 2);
+                });
     }
-
 
     void StartExperience()
     {
-        radius2 = radius * radius;
-        radius3 = radius2 * radius;
-        radius4 = radius3 * radius;
-        radius5 = radius4 * radius;
-        mass2 = mass * mass;
+        try
+        {
+            radius2 = radius * radius;
+            radius3 = radius2 * radius;
+            radius4 = radius3 * radius;
+            radius5 = radius4 * radius;
+            mass2 = mass * mass;
 
-        k1 = (315 * mass) / (64 * Mathf.PI * Mathf.Pow(radius, 9));
-        k2 = -(45 * mass) / (Mathf.PI * Mathf.Pow(radius, 6));
-        k3 = (45 * viscosityCoefficient * mass) / (Mathf.PI * Mathf.Pow(radius, 6));
-        timer = 0;
-        TsunamiWidth = dimensions / 2.0f;
-        VolcanoRadius = dimensions / 2.0f;
+            k1 = (315 * mass) / (64 * Mathf.PI * Mathf.Pow(radius, 9));
+            k2 = -(45 * mass) / (Mathf.PI * Mathf.Pow(radius, 6));
+            k3 = (45 * viscosityCoefficient * mass) / (Mathf.PI * Mathf.Pow(radius, 6));
+            timer = 0;
+            TsunamiWidth = dimensions / 2.0f;
+            VolcanoRadius = dimensions / 2.0f;
 
-        InitTris();
-        RespawnParticles();
-        FindKernels();
-        InitComputeShader();
-        InitComputeBuffers();
-        computeShader.Dispatch(recalculateCollisionHashGridKernel, _tris.Length, 1, 1);
+            InitTris();
+            RespawnParticles();
+            FindKernels();
+            InitComputeShader();
+            InitComputeBuffers();
+            computeShader.Dispatch(recalculateCollisionHashGridKernel, _tris.Length, 1, 1);
+        }
+        catch
+        {
+            Debug.LogWarning("Couldn't start");
+            ReleaseBuffers();
+            _particlesBuffer = null;
+        }
     }
 
     #region Initialisation
@@ -185,7 +196,7 @@ public class GPU_Particle_Manager : MonoBehaviour
         float z_start_offset = 0 + radius;
         float x_end_offset = dimensions - radius;
         float y_end_offset = dimensions - radius;
-        float z_end_offset = dimensions - radius;
+        float z_end_offset = dimensions/2 - radius;
 
         while (counter < numberOfParticles)
         {
@@ -404,9 +415,7 @@ public class GPU_Particle_Manager : MonoBehaviour
         computeShader.SetBuffer(integrateKernel, "_velocities", _velocitiesBuffer);
         computeShader.SetBuffer(integrateKernel, "_densities", _densitiesBuffer);
     }
-
     #endregion
-
 
     private void ShowIndicators()
     {
@@ -527,24 +536,31 @@ public class GPU_Particle_Manager : MonoBehaviour
 
     private void ReleaseBuffers()
     {
-        _particlesBuffer.Dispose();
-        _prevParticlesBuffer.Dispose();
-        _duplicateParticlesBuffer.Dispose();
-        _trisBuffer.Dispose();
-        _colorsBuffer.Dispose();
-        _argsBuffer.Dispose();
-        _neighbourListBuffer.Dispose();
-        _neighbourTrackerBuffer.Dispose();
-        _neighbourCollisionListBuffer.Dispose();
-        _neighbourCollisionTrackerBuffer.Dispose();
-        _hashGridBuffer.Dispose();
-        _hashGridTrackerBuffer.Dispose();
-        _collisionHashGridBuffer.Dispose();
-        _collisionHashGridTrackerBuffer.Dispose();
-        _densitiesBuffer.Dispose();
-        _pressuresBuffer.Dispose();
-        _velocitiesBuffer.Dispose();
-        _forcesBuffer.Dispose();
+        try
+        {
+            _particlesBuffer.Dispose();
+            _prevParticlesBuffer.Dispose();
+            _duplicateParticlesBuffer.Dispose();
+            _trisBuffer.Dispose();
+            _colorsBuffer.Dispose();
+            _argsBuffer.Dispose();
+            _neighbourListBuffer.Dispose();
+            _neighbourTrackerBuffer.Dispose();
+            _neighbourCollisionListBuffer.Dispose();
+            _neighbourCollisionTrackerBuffer.Dispose();
+            _hashGridBuffer.Dispose();
+            _hashGridTrackerBuffer.Dispose();
+            _collisionHashGridBuffer.Dispose();
+            _collisionHashGridTrackerBuffer.Dispose();
+            _densitiesBuffer.Dispose();
+            _pressuresBuffer.Dispose();
+            _velocitiesBuffer.Dispose();
+            _forcesBuffer.Dispose();
+        }
+        catch
+        {
+
+        }
     }
 
     private void OnDrawGizmos()

@@ -45,6 +45,7 @@ Shader "Example/URPUnlitShaderNormal"
                 float4 position : SV_POSITION;
                 half3 normal : TEXCOORD0;
                 uint instanceID : SV_InstanceID;
+                UNITY_FOG_COORDS(2);
             };
 
             float rand(float n)
