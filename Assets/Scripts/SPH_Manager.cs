@@ -78,7 +78,7 @@ public class SPH_Manager : MonoBehaviour
 
         k1 = (315 * mass) / (64 * Mathf.PI * Mathf.Pow(radius, 9));
         k2 = -(45 * mass) / (Mathf.PI * Mathf.Pow(radius, 6));
-        k3 = (45 * viscosityCoefficient * mass) / (Mathf.PI * Mathf.Pow(radius, 6)); 
+        k3 = (45 * viscosityCoefficient * mass) / (Mathf.PI * Mathf.Pow(radius, 6));
     }
 
     #region Initialisation
@@ -105,21 +105,18 @@ public class SPH_Manager : MonoBehaviour
                 Triangle face = new Triangle(p1, p2, p3, colliders[i].transform.rotation * normals[triangles[j]]);
                 if (distance1 > distance2 && distance1 > distance3)
                 {
-                    int t1 = Mathf.CeilToInt(distance2 / HashGrid.CellSize);
-                    int t2 = Mathf.CeilToInt(distance3 / HashGrid.CellSize);
+                    int t1 = (int)(distance2 / HashGrid.CellSize);
+                    int t2 = (int)(distance3 / HashGrid.CellSize);
                     for (int h = 0; h <= t1; h++)
                     {
                         for (int l = 0; l <= t2; l++)
                         {
-                            Vector3 potentialCell = p3 + ((p2 - p3).normalized * HashGrid.CellSize / 2 * h) + ((p1 - p3).normalized * HashGrid.CellSize / 2 * l);
+                            Vector3 potentialCell = p3 + ((p2 - p3).normalized * HashGrid.CellSize * h) + ((p1 - p3).normalized * HashGrid.CellSize * l);
                             if (face.PointInTriangle(potentialCell))
-                            {
-                                Debug.DrawLine(p1, potentialCell, Color.white, 5f);
                                 if (!isStatic)
                                     _dynamicCollisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
                                 else
                                     _staticCollisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
-                            }
                         }
                     }
                 }
@@ -131,15 +128,12 @@ public class SPH_Manager : MonoBehaviour
                     {
                         for (int l = 0; l <= t2; l++)
                         {
-                            Vector3 potentialCell = p1 + ((p3 - p1).normalized * HashGrid.CellSize / 2 * l) + ((p2 - p1).normalized * HashGrid.CellSize / 2 * h);
+                            Vector3 potentialCell = p1 + ((p3 - p1).normalized * HashGrid.CellSize * l) + ((p2 - p1).normalized * HashGrid.CellSize * h);
                             if (face.PointInTriangle(potentialCell))
-                            {
-                                Debug.DrawLine(p1, potentialCell, Color.white, 5f);
                                 if (!isStatic)
                                     _dynamicCollisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
                                 else
                                     _staticCollisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
-                            }
                         }
                     }
                 }
@@ -152,15 +146,12 @@ public class SPH_Manager : MonoBehaviour
                     {
                         for (l = 0; l <= t2; l++)
                         {
-                            Vector3 potentialCell = p2 + ((p3 - p2).normalized * HashGrid.CellSize / 2f * l) + ((p1 - p2).normalized * HashGrid.CellSize / 2 * h);
+                            Vector3 potentialCell = p2 + ((p3 - p2).normalized * HashGrid.CellSize * l) + ((p1 - p2).normalized * HashGrid.CellSize * h);
                             if (face.PointInTriangle(potentialCell))
-                            {
-                                Debug.DrawLine(p1, potentialCell, Color.white, 5f);
                                 if (!isStatic)
                                     _dynamicCollisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
                                 else
                                     _staticCollisionHashGrid[HashGrid.Hash(HashGrid.GetCell(potentialCell))].Add(face);
-                            }
                         }
                     }
                 }
@@ -181,8 +172,36 @@ public class SPH_Manager : MonoBehaviour
         int counter = 0;
 
         GameObject parentParticle = new GameObject();
+        /*        while (counter < numberOfParticles)
+                {
+                    for (int x = 0; x < particlesPerDimension; x++)
+                        for (int y = 0; y < particlesPerDimension; y++)
+                            for (int z = 0; z < particlesPerDimension; z++)
+                            {
+                                //Vector3 startPos = new Vector3(dimensions - 1, dimensions - 1, dimensions - 1) - new Vector3(x / 2f, y / 2f, z / 2f) - new Vector3(Random.Range(0f, 1f), Random.Range(0f, 1f), Random.Range(0f, 1f));
+                                Vector3 startPos = new Vector3(dimensions -1 - x, dimensions -1 - y, dimensions -1 - z); 
+                                _particles[counter] = Instantiate(particlePrefab);
+                                _particles[counter].transform.parent = parentParticle.transform;
+                                _particles[counter].transform.position = startPos;
+                                _particles[counter].transform.localScale = new Vector3(particleRadius, particleRadius, particleRadius);
+
+                                densities[counter] = -1f;
+                                pressures[counter] = 0.0f;
+                                forces[counter] = Vector3.zero;
+                                velocities[counter] = Vector3.zero;
+
+                                if (++counter == numberOfParticles)
+                                {
+                                    return;
+                                }
+                            }
+                }*/
+
+
+
+        /* GameObject parentParticle = new GameObject();*/
         float x_start_offset = 0 + particleRadius;
-        float y_start_offset = 0 + particleRadius*5;
+        float y_start_offset = 0 + particleRadius * 5;
         float z_start_offset = 0 + particleRadius;
         float x_end_offset = dimensions - particleRadius;
         float y_end_offset = dimensions - particleRadius;
@@ -190,12 +209,12 @@ public class SPH_Manager : MonoBehaviour
 
         while (counter < numberOfParticles)
         {
-            for (float y = y_start_offset; y < y_end_offset; y +=particleRadius)
+            for (float y = y_start_offset; y < y_end_offset; y += particleRadius)
                 for (float x = x_start_offset; x < x_end_offset; x += particleRadius)
                     for (float z = z_start_offset; z < z_end_offset; z += particleRadius)
                     {
-                        
-                        Vector3 startPos = new Vector3(x,y,z) + Vector3.one * Random.Range(-0.5f, 0.5f);
+
+                        Vector3 startPos = new Vector3(x, y, z) + Vector3.one * Random.Range(-0.5f, 0.5f);
                         _particles[counter] = Instantiate(particlePrefab);
                         _particles[counter].transform.parent = parentParticle.transform;
                         _particles[counter].transform.position = startPos;
@@ -224,7 +243,7 @@ public class SPH_Manager : MonoBehaviour
         _neighbourTracker = new int[numberOfParticles];
         _neighbourCollisionTracker = new int[numberOfParticles];
         HashGrid.CellSize = radius * 2; // Setting cell-size h to particle diameter.
-        HashGrid.Dimensions = dimensions; 
+        HashGrid.Dimensions = dimensions;
         for (int i = 0; i < dimensions; i++)
             for (int j = 0; j < dimensions; j++)
                 for (int k = 0; k < dimensions; k++)
@@ -322,14 +341,19 @@ public class SPH_Manager : MonoBehaviour
         {
             Triangle face = _neighbourCollisionList[i * maximumParticlesPerCell * 8 + j];
             Vector3 closestPoint = face.ClosestPointToPlane(newPos);
-            if (Vector3.Distance(newPos, closestPoint) > radius/2 || !face.PointInTriangle(closestPoint) || Vector3.Dot(face.normal, velocities[i].normalized) >=0)
+            if (Vector3.Distance(newPos, closestPoint) > radius / 2 || !face.PointInTriangle(closestPoint) || Vector3.Dot(face.normal, velocities[i].normalized) >= 0)
                 continue;
+            /*
+            Debug.DrawLine(newPos , velocities[i].normalized * 3 + newPos, Color.magenta, 5);
+            Debug.DrawLine(newPos, Vector3.Reflect(velocities[i], face.normal.normalized).normalized * 3 + newPos, Color.green, 5);
+            Debug.Log("Reflected " + face.normal.normalized);
+            */
             float collisionDamping = 1.0f;
             Vector3 force = Vector3.Project(velocities[i], (closestPoint - newPos).normalized);
 
-            if (force.magnitude > 1) collisionDamping *= 0.25f; 
+            if (force.magnitude > 1) collisionDamping *= 0.25f;
 
-            velocities[i] = Vector3.Reflect(velocities[i], face.normal.normalized) * collisionDamping ;
+            velocities[i] = Vector3.Reflect(velocities[i], face.normal.normalized) * collisionDamping;
         }
     }
     private void Integrate()
@@ -337,7 +361,7 @@ public class SPH_Manager : MonoBehaviour
         for (int i = 0; i < numberOfParticles; i++)
         {
             // forward Euler integration
-            
+
             Vector3 acceleration = forces[i] / densities[i];
             velocities[i] += acceleration * 0.01f;
             Vector3 newPos = _particles[i].transform.position;
@@ -456,7 +480,7 @@ public class SPH_Manager : MonoBehaviour
                 int neighbourIndex = _neighbourList[i * maximumParticlesPerCell * 8 + j];
                 float distanceSqr = (origin - _particles[neighbourIndex].transform.position).sqrMagnitude;
 
-                sum += k1 * Mathf.Pow((radius2 - distanceSqr),3); 
+                sum += k1 * Mathf.Pow((radius2 - distanceSqr), 3);
             }
 
             sum += k1 * Mathf.Pow(radius, 6);
@@ -480,7 +504,7 @@ public class SPH_Manager : MonoBehaviour
                 float distance = (_particles[i].transform.position - _particles[neighbourIndex].transform.position).magnitude;
                 Vector3 direction = (_particles[i].transform.position - _particles[neighbourIndex].transform.position).normalized;
 
-                Vector3 pressureForce = k2 * -(direction) * (pressures[i] + pressures[neighbourIndex]) / (2 * densities[neighbourIndex]) * Mathf.Pow((radius - distance),2); 
+                Vector3 pressureForce = k2 * -(direction) * (pressures[i] + pressures[neighbourIndex]) / (2 * densities[neighbourIndex]) * Mathf.Pow((radius - distance), 2);
                 forces[i] += pressureForce;
 
                 // Viscosity 
@@ -497,7 +521,7 @@ public class SPH_Manager : MonoBehaviour
         }
     }
 
-    public Vector3 TsunamiForces (Vector3 position)
+    public Vector3 TsunamiForces(Vector3 position)
     {
         float halfD = dimensions / 2.0f;
         int quarter = 0;
@@ -508,22 +532,22 @@ public class SPH_Manager : MonoBehaviour
         {
             quarter++;
             if (position.x <= halfD)
-                quarter++; 
+                quarter++;
         }
 
-        float x_percentage = position.x  / dimensions;
+        float x_percentage = position.x / dimensions;
         float y_percentage = position.y / dimensions;
 
         switch (quarter)
         {
             case 0:
-                return new Vector3( 20, 0, 0); 
+                return new Vector3(20, 0, 0);
             case 1:
-                return new Vector3( -5 *  x_percentage , 25 * (1 - y_percentage), 0);
+                return new Vector3(-5 * x_percentage, 25 * (1 - y_percentage), 0);
             case 2:
-                return new Vector3( -50 * x_percentage, -100  * y_percentage, 0);
+                return new Vector3(-50 * x_percentage, -100 * y_percentage, 0);
             case 3:
-                return new Vector3( 300 , -500 * y_percentage, 0);
+                return new Vector3(300, -500 * y_percentage, 0);
         }
 
         return Vector3.zero;
@@ -532,7 +556,7 @@ public class SPH_Manager : MonoBehaviour
     private void OnDrawGizmos()
     {
         Gizmos.color = Color.red;
-        Gizmos.DrawWireCube(new Vector3(dimensions / 2f, dimensions / 2f, dimensions / 2f), Vector3.one * dimensions);
+        Gizmos.DrawWireCube(new Vector3(dimensions / 2, dimensions / 2, dimensions / 2), Vector3.one * dimensions);
     }
 
 }
