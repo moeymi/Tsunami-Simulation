@@ -33,7 +33,9 @@ public class GPU_Particle_Manager : MonoBehaviour
 
     [Header("Simulation properties")]
     public bool TsunamiMode;
+    public bool showTsunamiIndicator; 
     public bool VolcanoMode;
+    public bool showVolcanoIndicator; 
     public int numberOfParticles = 50000;
     public int dimensions = 100;
     public int maximumParticlesPerCell = 500;
@@ -49,6 +51,8 @@ public class GPU_Particle_Manager : MonoBehaviour
 
     [Header("Debug information")]
     public float averageFPS;
+
+    private bool indicatorIsRendered ;
 
     private Vector3[] _particles;
     private Vector3[] _prevParticles;
@@ -70,6 +74,9 @@ public class GPU_Particle_Manager : MonoBehaviour
     private float[] _pressures;
     private Vector3[] _velocities;
     private Vector3[] _forces;
+
+    public GameObject volcanoIndicator;
+    public GameObject tsunamiIndicator;
 
     private Camera mainCamera;
 
@@ -389,31 +396,37 @@ public class GPU_Particle_Manager : MonoBehaviour
 
     #endregion
 
-    private void Start()
+
+    private void ShowIndicators()
     {
-        computeShader.Dispatch(recalculateCollisionHashGridKernel, _tris.Length, 1, 1);
-    }
-    Plane plane = new Plane(Vector3.up, 0);
-    Vector3 worldPosition;
-    void Update()
-    {
-        if (Input.GetMouseButtonDown(0))
+        GameObject indicator = showVolcanoIndicator ? volcanoIndicator : showTsunamiIndicator ? tsunamiIndicator : null; 
+
+        if (indicator != null )
         {
-            float distance;
-            Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-            if (plane.Raycast(ray, out distance))
+            float distance2;
+            Ray ray2 = Camera.main.ScreenPointToRay(Input.mousePosition);
+            if (plane.Raycast(ray2, out distance2))
             {
-                worldPosition = ray.GetPoint(distance);
-                VolcanoMode = true;
-                timer = 0;
-                computeShader.SetFloats("volcanoOrigin", new float[] { worldPosition.x, 0, worldPosition.z });
-                computeShader.SetBool("VolcanoMode", VolcanoMode);
+                worldPosition = ray2.GetPoint(distance2);
+                worldPosition.y = floorHeight;
+                if (!indicatorIsRendered)
+                {
+                    indicatorIsRendered = true; 
+                    indicator.SetActive(true);
+                    /* Get scale from mode width/radius*/
+                    //indicator.transform.localScale = new Vector3(1,1,1);
+                }
+                indicator.transform.position = worldPosition;
             }
         }
+    }
+
+    private void CheckModesTimer()
+    {
         if (VolcanoMode)
         {
             timer += Mathf.Min(0.08f, Time.deltaTime);
-            if (timer > 0.2f)
+            if (timer > 0.5)
             {
                 timer = 0;
                 VolcanoMode = false;
@@ -423,7 +436,7 @@ public class GPU_Particle_Manager : MonoBehaviour
 
         if (TsunamiMode)
         {
-            timer += Mathf.Min(0.08f, Time.deltaTime); 
+            timer += Mathf.Min(0.08f, Time.deltaTime);
             if (timer > 0.5)
             {
                 timer = 0;
@@ -431,6 +444,54 @@ public class GPU_Particle_Manager : MonoBehaviour
                 computeShader.SetBool("TsunamiMode", TsunamiMode);
             }
         }
+    }
+
+    private void EnableModeOnClick()
+    {
+        float distance;
+        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        if (plane.Raycast(ray, out distance))
+        {
+            worldPosition = ray.GetPoint(distance);
+            if (showVolcanoIndicator)
+            {
+                VolcanoMode = true;
+                timer = 0;
+                computeShader.SetFloats("volcanoOrigin", new float[] { worldPosition.x, 0, worldPosition.z });
+                computeShader.SetBool("VolcanoMode", VolcanoMode);
+                volcanoIndicator.SetActive(false);
+                showVolcanoIndicator = false;
+                indicatorIsRendered = false; 
+            }
+            if (showTsunamiIndicator)
+            {
+                TsunamiMode = true;
+                timer = 0;
+                computeShader.SetFloats("tsunamiOrigin", new float[] { worldPosition.x, 0, worldPosition.z });
+                computeShader.SetBool("TsunamiMode", TsunamiMode);
+                tsunamiIndicator.SetActive(false);
+                showTsunamiIndicator = false;
+                indicatorIsRendered = false;
+            }
+        }
+    }
+
+    private void Start()
+    {
+        computeShader.Dispatch(recalculateCollisionHashGridKernel, _tris.Length, 1, 1);
+    }
+    Plane plane = new Plane(Vector3.up, 0);
+    Vector3 worldPosition;
+    void Update()
+    {
+ 
+        if (Input.GetMouseButtonDown(0))
+        {
+            EnableModeOnClick();
+        }
+
+        ShowIndicators();
+        CheckModesTimer();
 
         computeShader.SetFloat("dt", Mathf.Min(0.08f, Time.deltaTime));
         computeShader.Dispatch(clearHashGridKernel, dimensions * dimensions * dimensions / 100, 1, 1);
