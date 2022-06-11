@@ -47,7 +47,6 @@ public class UISliders : MonoBehaviour
         EventsPool.UpdateUIEvent.AddListener(InitializeValues);
         EventsPool.UpdateUIEvent.AddListener(UpdateUI);
         void updateUI(float f){
-            Debug.Log("UPdated UI");
             EventsPool.UpdateUIEvent.Invoke();
         }
         radiusSlider.onValueChanged.AddListener(updateUI);
@@ -91,8 +90,8 @@ public class UISliders : MonoBehaviour
         particleManager.damping = dampingSlider.value;
         int particlesNum = (int)(particlesNumSlider.value - particlesNumSlider.value % 100);
         particleManager.numberOfParticles = particlesNum;
-        long y = 2147483648;
-        particleManager.maximumParticlesPerCell = (int)(y / (long)(particlesNum * 32));
+        int y = 67108864;
+        particleManager.maximumParticlesPerCell = Mathf.Min(200, (y / (particlesNum)));
         particleManager.dimensions = (int)dimsSlider.value;
     }
 }
