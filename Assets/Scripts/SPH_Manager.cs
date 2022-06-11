@@ -611,44 +611,27 @@ public class SPH_Manager : MonoBehaviour
     public Vector3 TsunamiForces3(Vector3 tsunamiOrigin, Vector3 particlePosition , float tsunamiWidth)
     {
        
-        if (timer > 2.5 )
+        if (timer >= 1 )
         {
             timer = 0;
             tsunamiMode = false;
         }
 
-        Vector3 tsunamiForce = new Vector3(0, 30, 0);
+        Vector3 tsunamiForce = new Vector3(0, 40, 0);
 
         if (timer < 1)
         {
             Vector3 difference = particlePosition - tsunamiOrigin;
 
             if (Mathf.Abs(difference.x) > tsunamiWidth)
-                return new Vector3( 15 * (particlePosition.x > tsunamiOrigin.x ? -1 : 1) , 0 , 0);
+                return new Vector3( 10 * (particlePosition.x > tsunamiOrigin.x ? -1 : 1) , 0 , 0);
 
             float distForce = Mathf.Clamp(1 - Mathf.Abs(difference.x) / tsunamiWidth, 0, 1);
 
-            Vector3 zForce = Vector3.Project(difference, new Vector3(0, 0, 1)) * 4;
+            Vector3 xForce = Vector3.Project(difference, new Vector3(1, 0, 0)) * 5;
 
-            return (tsunamiForce) * distForce ;
+            return (tsunamiForce + xForce) * distForce ;
         }
-        else if (timer > 2)
-        {
-            tsunamiOrigin.y = 3f; 
-            tsunamiForce = new Vector3(10, 5, 0);
-            Vector3 difference = particlePosition - tsunamiOrigin;
-
-            if (Mathf.Abs(difference.x) > tsunamiWidth && Mathf.Abs(difference.y) < tsunamiOrigin.y)
-                return Vector3.zero;
-
-            float distForce = Mathf.Clamp(1 - Mathf.Abs(difference.x)  / tsunamiWidth , 0, 1);
-
-            tsunamiForce.x *= distForce * (difference.x > 0 ? 1 : -1 );
-
-            return tsunamiForce;
-
-        } 
-
         return Vector3.zero; 
     }
 

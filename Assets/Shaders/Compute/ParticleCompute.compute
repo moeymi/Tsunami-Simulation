@@ -407,59 +407,20 @@ float3 VolcanoForces(float3 volcanoOrigin, float3 particlePosition, float volcan
     return volcanoForce;
 }
 
-float3 TsunamiForces(float3 position)
+float3 TsunamiForces(float3 tsunamiOrigin , float3 particlePosition , float tsunamiWidth)
 {
+    float3 tsunamiForce = float3(0, 40, 0);
 
-    float halfD = Dimensions / 2.0f;
-    int quarter = 0;
+    float3 difference = particlePosition - tsunamiOrigin;
 
-    if (position.x > halfD) quarter++;
-    if (position.y > halfD)
-    {
-        quarter++;
-        if (position.x <= halfD)
-            quarter++;
-    }
+    if (abs(difference.x) > tsunamiWidth)
+        return float3(10 * (particlePosition.x > tsunamiOrigin.x ? -1 : 1), 0, 0);
 
-    if (position.y < 1.5 && quarter != 0)
-        return float3(0, 0, 0);
+    float distForce = clamp(1 - abs(difference.x) / tsunamiWidth, 0, 1);
 
-    float x_percentage = position.x / Dimensions;
-    float y_percentage = position.y / Dimensions;
+    float3 xForce = Project(difference, float3(1, 0, 0)) * 5;
 
-    switch (quarter)
-    {
-    case 0:
-        return float3(20, 0, 0);
-    case 1:
-        return float3(10 * ( 1 - x_percentage) , 25 * x_percentage, 0);
-    case 2:
-        return  float3(-50 * x_percentage, -50 * y_percentage, 0);
-    case 3:
-        return  float3(200, -500 * (1-x_percentage), 0);
-    }
-
-    //if (quarter == 0)
-    //{
-    //    if (timer < 1.0f)
-    //    {
-    //        return float3(10, 0, 0);
-    //    }
-    //}
-
-    //if (quarter == 1)
-    //{
-    //    if (timer < 1.0f)
-    //    {
-    //        return float3(0, 12, 0);
-    //    }
-    //    else
-    //    {
-    //        return float3(-10, 10, 0);
-    //    }
-    //}
-
-    return float3(0, 0, 0);
+    return (tsunamiForce) * distForce;
 }
 
 [numthreads(100,1,1)]
@@ -503,7 +464,7 @@ void ComputeForces(uint3 id : SV_DispatchThreadID)
     // Gravity
     _forces[id.x] += g;
     if (TsunamiMode) {
-        _forces[id.x] += TsunamiForces(_particles[id.x]);
+        _forces[id.x] += TsunamiForces(float3(Dimensions / 2, 0, Dimensions / 2), _particles[id.x], Dimensions / 2);
     }
     if (VolcanoMode) {
         _forces[id.x] += VolcanoForces(float3(Dimensions/2,0, Dimensions/2),_particles[id.x] , Dimensions / 2);

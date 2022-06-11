@@ -432,6 +432,18 @@ public class GPU_Particle_Manager : MonoBehaviour
                 computeShader.SetBool("VolcanoMode", VolcanoMode);
             }
         }
+
+        if (TsunamiMode)
+        {
+            timer += Time.deltaTime; 
+            if (timer > 1)
+            {
+                timer = 0;
+                TsunamiMode = false;
+                computeShader.SetBool("TsunamiMode", TsunamiMode);
+            }
+        }
+
         computeShader.SetFloat("dt", Mathf.Min(0.06f, Time.deltaTime));
         computeShader.Dispatch(clearHashGridKernel, dimensions * dimensions * dimensions / 100, 1, 1);
         computeShader.Dispatch(recalculateHashGridKernel, numberOfParticles / 100, 1, 1);
