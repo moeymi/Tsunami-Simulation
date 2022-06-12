@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEditor;
@@ -82,6 +83,7 @@ public class GPU_Particle_Manager : MonoBehaviour
     public GameObject volcanoIndicator;
     public GameObject tsunamiIndicator;
 
+    [SerializeField]
     private Camera mainCamera;
 
     float k1;
@@ -139,7 +141,7 @@ public class GPU_Particle_Manager : MonoBehaviour
 
     private void Awake()
     {
-        mainCamera = Camera.main;
+        //mainCamera = Camera.main;
         EventsPool.StartExperienceEvent.AddListener(StartExperience);
         EventsPool.UpdateUIEvent.AddListener(() => {
             camerasParent.transform.position = new Vector3(dimensions / 2, dimensions, -dimensions / 8f);
@@ -148,7 +150,7 @@ public class GPU_Particle_Manager : MonoBehaviour
                 });
     }
 
-    void StartExperience()
+    public void StartExperience()
     {
         try
         {
@@ -172,9 +174,10 @@ public class GPU_Particle_Manager : MonoBehaviour
             InitComputeBuffers();
             computeShader.Dispatch(recalculateCollisionHashGridKernel, _tris.Length, 1, 1);
         }
-        catch
+        catch (Exception e)
         {
             Debug.LogWarning("Couldn't start");
+            Debug.LogWarning(e.Message);
             ReleaseBuffers();
             _particlesBuffer = null;
         }
