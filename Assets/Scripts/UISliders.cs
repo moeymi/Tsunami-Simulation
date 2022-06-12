@@ -34,6 +34,9 @@ public class UISliders : MonoBehaviour
     private Slider dimsSlider;
 
     [SerializeField]
+    private Slider mxpCellSlider;
+
+    [SerializeField]
     private Slider volcanoInts;
 
     [SerializeField]
@@ -57,6 +60,7 @@ public class UISliders : MonoBehaviour
     private TextMeshProUGUI volcanoRadiusText;
     private TextMeshProUGUI tsunamiIntsText;
     private TextMeshProUGUI tsunamiWidthText;
+    private TextMeshProUGUI mxpCell;
     private void Awake()
     {
         EventsPool.StartExperienceEvent.AddListener(InitializeValues);
@@ -75,6 +79,7 @@ public class UISliders : MonoBehaviour
             dampingSlider.onValueChanged.AddListener(updateUI);
             particlesNumSlider.onValueChanged.AddListener(updateUI);
             dimsSlider.onValueChanged.AddListener(updateUI);
+            mxpCellSlider.onValueChanged.AddListener(updateUI);
         } catch { }
         try
         {
@@ -99,6 +104,7 @@ public class UISliders : MonoBehaviour
                 dmp = dampingSlider.transform.parent.Find("Value").GetComponent<TextMeshProUGUI>();
                 prtNum = particlesNumSlider.transform.parent.Find("Value").GetComponent<TextMeshProUGUI>();
                 dims = dimsSlider.transform.parent.Find("Value").GetComponent<TextMeshProUGUI>();
+                mxpCell = mxpCellSlider.transform.parent.Find("Value").GetComponent<TextMeshProUGUI>();
             }
             catch { }
             try
@@ -120,6 +126,7 @@ public class UISliders : MonoBehaviour
             dmp.text = dampingSlider.value.ToString();
             prtNum.text = ((int)(particlesNumSlider.value - particlesNumSlider.value % 100)).ToString();
             dims.text = dimsSlider.value.ToString();
+            mxpCell.text = mxpCellSlider.value.ToString();
         } catch { }
         try
         {
@@ -142,8 +149,7 @@ public class UISliders : MonoBehaviour
             particleManager.damping = dampingSlider.value;
             int particlesNum = (int)(particlesNumSlider.value - particlesNumSlider.value % 100);
             particleManager.numberOfParticles = particlesNum;
-            int y = 67108864;
-            particleManager.maximumParticlesPerCell = Mathf.Min(200, (y / (particlesNum)));
+            particleManager.maximumParticlesPerCell = (int) mxpCellSlider.value;
             particleManager.dimensions = (int)dimsSlider.value;
         }
         catch { }

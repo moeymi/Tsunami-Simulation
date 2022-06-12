@@ -599,10 +599,10 @@ void Integrate(uint3 id : SV_DispatchThreadID)
     _colors[id.x * 3 + 1] = newColor;
     _colors[id.x * 3 + 2] = newColor;
     _particles[id.x] = newPos;
-    float xrand = sin(Hash_From2D(id.x, _Time.x)) * 0.3;
-    float yrand = sin(Hash_From2D(id.x, _Time.y)) * 0.3;
-    float y2rand = cos(Hash_From2D(id.x, _Time.y)) * 0.3;
-    float zrand = cos(Hash_From2D(id.x, _Time.z)) * 0.3;
+    float xrand = sin(_Time.x) * 0.3;
+    float yrand = sin(_Time.x) * 0.3;
+    float y2rand = cos(_Time.x) * 0.3;
+    float zrand = cos(_Time.x) * 0.3;
     _duplicateParticles[id.x * 3] = newPos;
     _duplicateParticles[id.x * 3 + 1] = newPos + float3(xrand, yrand, zrand);
     _duplicateParticles[id.x * 3 + 2] = newPos + float3(-xrand, y2rand, -zrand);
