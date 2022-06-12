@@ -127,6 +127,7 @@ public class GPU_Particle_Manager : MonoBehaviour
     private int integrateKernel;
 
     public Transform collidersParent;
+    public Transform camerasParent;
 
     [StructLayout(LayoutKind.Sequential, Size = 28)]
     private struct Position
@@ -141,7 +142,7 @@ public class GPU_Particle_Manager : MonoBehaviour
         mainCamera = Camera.main;
         EventsPool.StartExperienceEvent.AddListener(StartExperience);
         EventsPool.UpdateUIEvent.AddListener(() => {
-            mainCamera.transform.position = new Vector3(dimensions / 2, dimensions * 0.9f, -dimensions / 10f);
+            camerasParent.transform.position = new Vector3(dimensions / 2, dimensions, -dimensions / 8f);
             collidersParent.transform.parent.localScale = Vector3.one * (dimensions / 120f);
             collidersParent.transform.parent.position = new Vector3(dimensions / 2, 0, dimensions / 2);
                 });
@@ -193,12 +194,12 @@ public class GPU_Particle_Manager : MonoBehaviour
         _forces = new Vector3[numberOfParticles];
 
         int counter = 0;
-        float x_start_offset = 0 + radius;
+        float x_start_offset = dimensions/2 + radius;
         float y_start_offset = 0 + radius + floorHeight;
         float z_start_offset = 0 + radius;
         float x_end_offset = dimensions - radius;
         float y_end_offset = dimensions - radius;
-        float z_end_offset = dimensions/2 - radius;
+        float z_end_offset = dimensions - radius;
 
         while (counter < numberOfParticles)
         {
@@ -487,8 +488,6 @@ public class GPU_Particle_Manager : MonoBehaviour
                 computeShader.SetFloat("volcanoRadius", VolcanoRadius);
                 computeShader.SetFloat("volcanoInts", VolcanoInts);
                 computeShader.SetBool("VolcanoMode", VolcanoMode);
-                Debug.LogError(VolcanoRadius);
-                Debug.LogError(VolcanoInts);
                 volcanoIndicator.SetActive(false);
                 showVolcanoIndicator = false;
                 indicatorIsRendered = false; 
@@ -507,6 +506,7 @@ public class GPU_Particle_Manager : MonoBehaviour
             }
         }
     }
+
 
     private void Start()
     {
