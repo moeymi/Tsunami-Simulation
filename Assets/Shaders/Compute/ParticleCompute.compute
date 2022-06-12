@@ -525,7 +525,8 @@ void ComputeCollisions(uint3 id : SV_DispatchThreadID) {
         float collisionDamping = 1;
         float3 closestPoint = ProjectPointOnPlane(_tris[neighbourIndex].normal, _tris[neighbourIndex].p0, _particles[id.x]);
         float velocityTowardsCollider = dot(_velocities[id.x], normalize(closestPoint - _particles[id.x]));
-
+        if (!PointInTriangle(_tris[neighbourIndex], closestPoint))
+            continue;
         if (velocityTowardsCollider > 0.5f) collisionDamping *= 0.25f;
 
         float3 newVel = reflect(_velocities[id.x], _tris[neighbourIndex].normal);
