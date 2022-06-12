@@ -31,7 +31,7 @@ public class FlyCamera : MonoBehaviour
     {
         if (!_c.enabled)
             return;
-        if (Input.GetMouseButton(0))
+        if (Input.GetMouseButton(1))
         {
             lastMouse = Input.mousePosition - lastMouse;
             lastMouse = new Vector3(-lastMouse.y * camSens, lastMouse.x * camSens, 0);
